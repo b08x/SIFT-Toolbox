@@ -79,7 +79,7 @@ export const SourceAssessmentModal: React.FC<SourceAssessmentModalProps> = ({ so
                         </div>
 
                         <div>
-                            <h3 className="text-sm font-medium text-gray-400">Notes from AI</h3>
+                            <h3 className="text-sm font-medium text-gray-400">Notes from Model</h3>
                             <div className="mt-1 p-3 bg-[#212934] rounded-md text-sm text-gray-300 whitespace-pre-wrap">
                                 {source.notes || <span className="italic">No notes provided.</span>}
                             </div>

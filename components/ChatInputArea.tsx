@@ -1,4 +1,5 @@
 
+
 import React, { useState, KeyboardEvent } from 'react';
 
 interface ChatInputAreaProps {
@@ -40,7 +41,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder={isLoading ? "AI is responding..." : "Type your message or select a command..."}
+          placeholder={isLoading ? "The model is responding..." : "Type your message or select a command..."}
           className="flex-grow p-3 bg-[#333e48] border border-[#5c6f7e] rounded-lg shadow-sm focus:ring-[#e2a32d] focus:border-[#e2a32d] text-gray-200 placeholder-[#95aac0]/70 resize-none scrollbar-thin scrollbar-thumb-[#95aac0] scrollbar-track-[#333e48] disabled:bg-[#2b3541] disabled:cursor-not-allowed"
           rows={Math.min(3, Math.max(1, inputText.split('\n').length))} 
           disabled={isLoading}

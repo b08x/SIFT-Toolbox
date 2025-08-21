@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -615,7 +616,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
           </div>
 
           <footer className="mt-auto pt-3 text-center text-xs text-[#95aac0]/70 flex-shrink-0">
-            <p>Powered by GenAI | SIFT Methodology.</p>
+            <p>Reports compiled and contextualized using Language Models. | SIFT Methodology.</p>
           </footer>
       </main>
       {appPhase === AppPhase.CHAT_ACTIVE && (

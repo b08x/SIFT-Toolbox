@@ -84,7 +84,7 @@ export const UserQueryPanel: React.FC<UserQueryPanelProps> = ({
         {(aiReasoningStream || isProcessingReasoning) && (
           <div className="pt-4 mt-4 border-t border-[#5c6f7e]">
              <h3 className="text-sm font-medium text-[#e2a32d] mb-1 flex items-center">
-                AI Reasoning
+                Model's Reasoning Process
                 {isProcessingReasoning && <span className="status-pulse ml-2 !w-2 !h-2"></span>}
              </h3>
              <div className="text-sm text-gray-300 bg-[#212934] p-2 rounded-md max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-[#95aac0] scrollbar-track-[#333e48] markdown-content prose-sm">

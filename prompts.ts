@@ -1,4 +1,5 @@
 
+
 import { ReportType } from './types';
 
 // Note: These prompts are extensive and directly transcribed/adapted from the user-provided OCR.
@@ -153,7 +154,7 @@ If an image is uploaded, describe the image and transcribe the text before doing
 Your response must include the following sections, in this exact order (all sections have cites):
 
 Generated [current date], may be out of date if significantly later.
-AI-Generated: Will likely contain errors; treat this as one input into a human-checked process
+Language Model-Generated: Will likely contain errors; treat this as one input into a human-checked process
 
 1.  Verified Facts Table (labeled "✅ Verified Facts")
 2.  Errors and Corrections Table (labeled "⚠️ Errors and Corrections")

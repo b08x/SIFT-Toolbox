@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface LandingPageProps {
@@ -36,7 +37,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     <span className="mr-4">🔍</span>SIFT Toolbox
                 </h1>
                 <p className="text-xl text-[#95aac0] max-w-3xl mx-auto">
-                    An AI-Powered Assistant for Modern Fact-Checking and Contextualization
+                    Leveraging Language Models to compile and analyze information for modern fact-checking.
                 </p>
             </header>
 
@@ -82,7 +83,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         Quickly create a "Context Report" for a high-level overview or a "Community Note" for a concise, shareable summary to combat misinterpretation.
                     </FeatureCard>
                      <FeatureCard icon="💬" title="Interactive Investigation">
-                        Refine the analysis through a chat interface. Ask follow-up questions, command the AI to dig deeper ("another round"), or analyze the surrounding discourse ("read the room").
+                        Refine the analysis through a chat interface. Ask follow-up questions, command the model to dig deeper ("another round"), or analyze the surrounding discourse ("read the room").
                     </FeatureCard>
                  </div>
             </section>
@@ -90,7 +91,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <section className="text-center">
                  <h2 className="text-3xl font-bold text-white mb-4">Ready to Start Analyzing?</h2>
                  <p className="text-[#95aac0] max-w-2xl mx-auto mb-8">
-                    This tool uses third-party AI services. You will need your own API key to proceed. Your keys are stored only in your browser for the current session and are not sent anywhere except to the selected AI provider.
+                    This tool uses third-party Language Model providers. You will need your own API key to proceed. Your keys are stored only in your browser for the current session and are not sent anywhere except to the selected model provider.
                  </p>
                  <button 
                     onClick={onGetStarted}

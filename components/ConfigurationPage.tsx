@@ -226,7 +226,7 @@ export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                                     placeholder="e.g., Focus on identifying the original location and date of the video. Prioritize official statements from law enforcement."
                                     className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm"
                                 />
-                                <p className="text-xs text-[#95aac0] mt-1">Provide any specific instructions, perspectives, or background information for the AI.</p>
+                                <p className="text-xs text-[#95aac0] mt-1">Provide any specific instructions, perspectives, or background information for the language model.</p>
                             </div>
                              <div>
                                 <label htmlFor="session-urls" className="block text-sm font-medium text-gray-200 mb-1">
@@ -241,7 +241,7 @@ export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
                                     className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm"
                                 />
                                 <p className="text-xs text-[#95aac0] mt-1">
-                                    Provide specific web pages for the AI to analyze. Supported by models like Gemini 2.5 Pro.
+                                    Provide specific web pages for the language model to analyze. Supported by models like Gemini 2.5 Pro.
                                 </p>
                             </div>
                              <div>
@@ -292,10 +292,10 @@ export const ConfigurationPage: React.FC<ConfigurationPageProps> = ({
 
                     {/* Section 2: AI Provider & API Keys */}
                     <section className="bg-[#333e48]/60 p-6 rounded-lg shadow-lg border border-[#5c6f7e]/50">
-                        <h2 className="text-xl font-semibold text-[#e2a32d] mb-4 border-b border-[#5c6f7e]/50 pb-2">2. AI Provider & API Keys</h2>
+                        <h2 className="text-xl font-semibold text-[#e2a32d] mb-4 border-b border-[#5c6f7e]/50 pb-2">2. Language Model Provider & API Keys</h2>
                         <div className="space-y-4">
                             <div>
-                                <label htmlFor="provider-select" className="block text-sm font-medium text-gray-200 mb-1">AI Provider</label>
+                                <label htmlFor="provider-select" className="block text-sm font-medium text-gray-200 mb-1">Language Model Provider</label>
                                 <select
                                     id="provider-select"
                                     value={selectedProviderKey}
