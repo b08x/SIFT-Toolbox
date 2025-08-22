@@ -10,6 +10,7 @@ import { UserQueryPanel } from './components/UserQueryPanel';
 import { RightSidebar } from './components/RightSidebar';
 import { LandingPage } from './components/LandingPage';
 import { ConfigurationPage } from './components/ConfigurationPage';
+import { SettingsModal } from './components/SettingsModal';
 import { AgenticApiService } from './services/agenticApiService.ts';
 import { SourceAssessmentModal } from './components/SourceAssessmentModal';
 
@@ -59,6 +60,7 @@ const AppInternal = (): React.ReactElement => {
   const [sessionContext, setSessionContext] = useState<string>('');
   const [sessionFiles, setSessionFiles] = useState<UploadedFile[]>([]);
   const [sessionUrls, setSessionUrls] = useState<string>('');
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
 
   // Chat State
@@ -85,7 +87,8 @@ const AppInternal = (): React.ReactElement => {
     return AVAILABLE_PROVIDERS_MODELS.find(m => m.id === selectedModelId && m.provider === selectedProviderKey);
   }, [selectedModelId, selectedProviderKey]);
 
-  const handleResetApp = () => {
+  const handleGoHome = () => {
+    // Full reset, including API keys
     setChatMessages([]);
     setIsLoading(false);
     setError(null);
@@ -96,9 +99,6 @@ const AppInternal = (): React.ReactElement => {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    setAppPhase(AppPhase.LANDING); 
-    setUserApiKeys({}); 
-    setApiKeyValidation({}); 
     setSessionTopic('');
     setSessionContext('');
     setSessionFiles([]);
@@ -107,6 +107,35 @@ const AppInternal = (): React.ReactElement => {
     setSelectedSourceForModal(null);
     setAiReasoningStream('');
     setIsProcessingReasoning(false);
+    
+    // Clear keys and validation
+    setUserApiKeys({}); 
+    setApiKeyValidation({}); 
+    setAppPhase(AppPhase.LANDING); 
+  };
+  
+  const handleNewSession = () => {
+    // Resets session but preserves API keys
+    setChatMessages([]);
+    setIsLoading(false);
+    setError(null);
+    setLlmStatusMessage(null);
+    setOriginalQueryForRestart(null);
+    setCurrentSiftQueryDetails(null);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setSessionTopic('');
+    setSessionContext('');
+    setSessionFiles([]);
+    setSessionUrls('');
+    setSourceAssessments([]);
+    setSelectedSourceForModal(null);
+    setAiReasoningStream('');
+    setIsProcessingReasoning(false);
+
+    setAppPhase(AppPhase.CONFIGURATION_SETUP);
   };
 
   const handleGetStarted = () => {
@@ -538,31 +567,43 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
 
   if (appPhase === AppPhase.CONFIGURATION_SETUP) {
     return (
-      <ConfigurationPage
-        userApiKeys={userApiKeys}
-        setUserApiKeys={setUserApiKeys}
-        apiKeyValidation={apiKeyValidation}
-        setApiKeyValidation={setApiKeyValidation}
-        selectedProviderKey={selectedProviderKey}
-        setSelectedProviderKey={setSelectedProviderKey}
-        enableGeminiPreprocessing={enableGeminiPreprocessing}
-        setEnableGeminiPreprocessing={setEnableGeminiPreprocessing}
-        availableModels={AVAILABLE_PROVIDERS_MODELS}
-        selectedModelId={selectedModelId}
-        onSelectModelId={setSelectedModelId}
-        modelConfigParams={modelConfigParams}
-        onModelConfigParamChange={setModelConfigParams}
-        sessionTopic={sessionTopic}
-        setSessionTopic={setSessionTopic}
-        sessionContext={sessionContext}
-        setSessionContext={setSessionContext}
-        sessionFiles={sessionFiles}
-        setSessionFiles={setSessionFiles}
-        sessionUrls={sessionUrls}
-        setSessionUrls={setSessionUrls}
-        onStartSession={handleStartSession}
-        onResetApp={handleResetApp}
-      />
+      <>
+        <ConfigurationPage
+          apiKeyValidation={apiKeyValidation}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          sessionTopic={sessionTopic}
+          setSessionTopic={setSessionTopic}
+          sessionContext={sessionContext}
+          setSessionContext={setSessionContext}
+          sessionFiles={sessionFiles}
+          setSessionFiles={setSessionFiles}
+          sessionUrls={sessionUrls}
+          setSessionUrls={setSessionUrls}
+          onStartSession={handleStartSession}
+          onGoHome={handleGoHome}
+          selectedProviderKey={selectedProviderKey}
+          enableGeminiPreprocessing={enableGeminiPreprocessing}
+        />
+        {isSettingsModalOpen && (
+          <SettingsModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            userApiKeys={userApiKeys}
+            setUserApiKeys={setUserApiKeys}
+            apiKeyValidation={apiKeyValidation}
+            setApiKeyValidation={setApiKeyValidation}
+            selectedProviderKey={selectedProviderKey}
+            setSelectedProviderKey={setSelectedProviderKey}
+            enableGeminiPreprocessing={enableGeminiPreprocessing}
+            setEnableGeminiPreprocessing={setEnableGeminiPreprocessing}
+            availableModels={AVAILABLE_PROVIDERS_MODELS}
+            selectedModelId={selectedModelId}
+            onSelectModelId={setSelectedModelId}
+            modelConfigParams={modelConfigParams}
+            onModelConfigParamChange={setModelConfigParams}
+          />
+        )}
+      </>
     );
   }
 
@@ -579,13 +620,25 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                   Model: <span className="font-semibold text-[#c36e26]">{getSelectedModelConfig()?.name || 'N/A'}</span>
               </p>
             </div>
-            <button
-                onClick={handleResetApp}
-                className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-red-500 transition-colors"
-                title="End session and return to landing page"
-            >
-                End Session
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                  onClick={() => setIsSettingsModalOpen(true)}
+                  className="p-2 text-sm bg-gray-600 hover:bg-gray-500 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-gray-500 transition-colors"
+                  title="Open Settings"
+              >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.127c-.332.183-.582.495-.645.87l-.213 1.281c-.09.543-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37-.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.127.332-.183.582-.495.645-.87l.213-1.281z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+              </button>
+              <button
+                  onClick={handleNewSession}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-blue-500 transition-colors"
+                  title="End this session and start a new one"
+              >
+                  New Session
+              </button>
+            </div>
           </header>
           
           {error && <ErrorAlert message={error} />}
@@ -629,6 +682,25 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
           onExportDossier={handleExportDossier}
           sourceAssessments={sourceAssessments}
           onSelectSource={setSelectedSourceForModal}
+        />
+      )}
+      {isSettingsModalOpen && (
+        <SettingsModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            userApiKeys={userApiKeys}
+            setUserApiKeys={setUserApiKeys}
+            apiKeyValidation={apiKeyValidation}
+            setApiKeyValidation={setApiKeyValidation}
+            selectedProviderKey={selectedProviderKey}
+            setSelectedProviderKey={setSelectedProviderKey}
+            enableGeminiPreprocessing={enableGeminiPreprocessing}
+            setEnableGeminiPreprocessing={setEnableGeminiPreprocessing}
+            availableModels={AVAILABLE_PROVIDERS_MODELS}
+            selectedModelId={selectedModelId}
+            onSelectModelId={setSelectedModelId}
+            modelConfigParams={modelConfigParams}
+            onModelConfigParamChange={setModelConfigParams}
         />
       )}
        {selectedSourceForModal && (
