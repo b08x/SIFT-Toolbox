@@ -84,8 +84,8 @@ export class AgenticApiService {
                 await generateText({
                     model: mistralProvider('mistral-small-latest'),
                     prompt: 'test',
-                    // FIX: The 'ai' SDK uses `maxTokens` instead of `maxCompletionTokens`.
-                    maxTokens: 10,
+                    // FIX: The 'ai' SDK uses `maxCompletionTokens` for this version.
+                    maxCompletionTokens: 10,
                 });
             }
             return { isValid: true };
@@ -372,8 +372,8 @@ export class AgenticApiService {
                         abortSignal: signal,
                         temperature: modelConfigParams.temperature as number,
                         topP: modelConfigParams.topP as number,
-                        // FIX: The `ai` SDK uses `maxTokens` instead of `maxCompletionTokens`. The value comes from modelConfigParams.max_tokens.
-                        maxTokens: modelConfigParams.max_tokens as number,
+                        // FIX: The 'ai' SDK for this version uses `maxCompletionTokens`. The value comes from modelConfigParams.max_tokens.
+                        maxCompletionTokens: modelConfigParams.max_tokens as number,
                     });
                     
                     yield { type: 'status', message: 'Main Analysis: Analyzing and synthesizing information...' };
