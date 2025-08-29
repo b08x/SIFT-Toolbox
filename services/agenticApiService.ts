@@ -77,18 +77,44 @@ export class AgenticApiService {
                     defaultHeaders: { 'HTTP-Referer': window.location.href, 'X-Title': 'SIFT Toolbox' },
                     dangerouslyAllowBrowser: true,
                 });
+                // Using a free model for validation as requested.
                 await openrouter.chat.completions.create({ model: 'deepseek/deepseek-chat-v3-0324:free', messages: [{role: 'user', content: 'test'}], max_tokens: 5});
             } else if (provider === AIProvider.MISTRAL) {
                 const mistralProvider = createMistral({ apiKey: key });
                 await generateText({
                     model: mistralProvider('mistral-small-latest'),
                     prompt: 'test',
+                    // FIX: The 'ai' SDK uses `maxTokens` instead of `maxCompletionTokens`.
                     maxTokens: 10,
                 });
             }
             return { isValid: true };
         } catch (e: any) {
-            return { isValid: false, error: e.message || 'Validation failed.' };
+            const errorText = e.message || 'Validation failed.';
+            let finalErrorText = `Validation failed: ${errorText}`; // Default message
+
+            if (e instanceof OpenAI.APIError) {
+                if (e.status === 401) {
+                    finalErrorText = "Authentication failed (401). Please ensure your API key is correct and active.";
+                } else if (e.status === 429) {
+                     if (provider === AIProvider.OPENROUTER) {
+                        finalErrorText = "Validation failed due to rate limits (429). This is common with free models. If your key is correct, you can try again later or proceed with the session, but you may still encounter errors.";
+                    } else {
+                        finalErrorText = "Validation failed due to a rate limit error (429) from the provider. Please try again later or check your key's status.";
+                    }
+                } else if (e.status === 404) {
+                    finalErrorText = `The validation model was not found (404). This may be a temporary issue with the provider. Details: ${errorText}`;
+                } else {
+                    finalErrorText = `An API error occurred during validation (Status ${e.status}): ${errorText}`;
+                }
+            } else if (errorText.includes('429')) { // Fallback for non-APIError rate limit messages
+                 if (provider === AIProvider.OPENROUTER) {
+                    finalErrorText = "Key validation failed with a 429 error from OpenRouter. The test model is likely rate-limited. If you are sure your key is correct, you can try to proceed, but you may still encounter errors. Consider trying again later or checking your OpenRouter account dashboard.";
+                } else {
+                    finalErrorText = "Could not validate key due to a rate limit error (429) from the provider. This can happen with free models. Please try again later or check your key's status on the provider's website.";
+                }
+            }
+            return { isValid: false, error: finalErrorText };
         }
     }
 
@@ -321,7 +347,7 @@ export class AgenticApiService {
             } else if ([AIProvider.OPENAI, AIProvider.OPENROUTER, AIProvider.MISTRAL].includes(currentProviderForMainExecution)) {
                 yield { type: 'status', message: `Main Analysis: Sending request to ${this.modelConfig.name}...` };
                 
-                // Get history *before* the current message, then we'll add the full prompt as the last message.
+                // Get history *before* the current message, then we'lladd the full prompt as the last message.
                 const historyContext = getTruncatedHistoryForApi(fullChatHistory.slice(0, -1), systemPrompt, this.provider).openai || [];
 
                 if (this.provider === AIProvider.MISTRAL) {
@@ -346,6 +372,7 @@ export class AgenticApiService {
                         abortSignal: signal,
                         temperature: modelConfigParams.temperature as number,
                         topP: modelConfigParams.topP as number,
+                        // FIX: The `ai` SDK uses `maxTokens` instead of `maxCompletionTokens`. The value comes from modelConfigParams.max_tokens.
                         maxTokens: modelConfigParams.max_tokens as number,
                     });
                     
@@ -412,8 +439,20 @@ export class AgenticApiService {
                  yield { type: 'status', message: 'Generation cancelled by user.' };
             } else {
                 const errorText = e instanceof Error ? e.message : String(e);
+                let finalErrorText = errorText;
                 console.error("Agentic API call failed:", e);
-                yield { type: 'error', error: errorText };
+                
+                const isRateLimitError = (e instanceof OpenAI.APIError && e.status === 429) || errorText.includes('429');
+        
+                if (isRateLimitError) {
+                    if (this.provider === AIProvider.OPENROUTER) {
+                        finalErrorText = `OpenRouter returned a 429 error. This usually means the selected model is rate-limited or temporarily unavailable. This is common for free models. Please try again in a few minutes, choose a different model in Settings, or check your OpenRouter account for usage limits.`;
+                    } else {
+                        finalErrorText = "The model provider returned a rate limit error (429). This can happen with free models under heavy load or if usage limits are exceeded. Please try again in a few minutes, select a different model in Settings, or check your API key's usage on the provider's website.";
+                    }
+                }
+        
+                yield { type: 'error', error: finalErrorText };
             }
         }
     }
