@@ -1,5 +1,4 @@
 
-
 import { Part } from "@google/genai";
 
 export enum ReportType {
@@ -156,6 +155,21 @@ export interface CachedSiftReport {
   originalQueryReportType: ReportType;
   cachedAt: number; // Timestamp of when it was cached
 }
+
+// For Session Saving
+export interface SavedSessionState {
+  chatMessages: ChatMessage[];
+  currentSiftQueryDetails: CurrentSiftQueryDetails | null;
+  originalQueryForRestart: OriginalQueryInfo | null;
+  sourceAssessments: SourceAssessment[];
+  selectedProviderKey: AIProvider;
+  selectedModelId: string;
+  modelConfigParams: ConfigurableParams;
+  enableGeminiPreprocessing: boolean;
+  userApiKeys: { [key in AIProvider]?: string };
+  apiKeyValidation: ApiKeyValidationStates;
+}
+
 
 // Types for AgenticApiService streaming
 export type AgentStatusUpdate = {

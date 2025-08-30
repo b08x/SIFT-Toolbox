@@ -92,6 +92,49 @@
           opacity: 0.7;
         }
       }
+
+      /* Tabbed Report Styles */
+      .tabs-container {
+        background-color: #2b3541; /* slightly lighter than message bubble */
+        border-radius: 0.5rem;
+        overflow: hidden;
+        border: 1px solid #5c6f7e;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .tabs-nav {
+        display: flex;
+        flex-wrap: wrap;
+        background-color: #212934;
+        padding: 4px;
+        border-bottom: 1px solid #5c6f7e;
+      }
+      .tab-button {
+        padding: 8px 12px;
+        margin: 2px;
+        border: 1px solid transparent;
+        background-color: transparent;
+        color: #95aac0;
+        cursor: pointer;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s ease-in-out;
+        flex-shrink: 0;
+      }
+      .tab-button:hover {
+        background-color: #5c6f7e;
+        color: #ffffff;
+      }
+      .tab-button.active {
+        background-color: #e2a32d;
+        color: #212934;
+        font-weight: 700;
+      }
+      .tab-content {
+        padding: 12px;
+        background-color: #333e48;
+      }
     </style>
 <script type="importmap">
 {

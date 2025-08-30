@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { SourceAssessment } from '../types';
 
@@ -10,6 +11,9 @@ interface RightSidebarProps {
   onExportDossier: (format: 'md' | 'pdf') => void;
   sourceAssessments: SourceAssessment[];
   onSelectSource: (source: SourceAssessment) => void;
+  onSaveSession: () => void;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  lastSaveTime: Date | null;
 }
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -21,8 +25,50 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   onExportDossier,
   sourceAssessments,
   onSelectSource,
+  onSaveSession,
+  saveStatus,
+  lastSaveTime,
 }) => {
   const anyLoading = isLoading || isGeneratingDossier;
+
+  const renderSaveStatus = () => {
+    switch (saveStatus) {
+      case 'saving':
+        return (
+          <div className="flex items-center text-xs text-[#e2a32d]">
+            <svg className="animate-spin h-3 w-3 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Saving...
+          </div>
+        );
+      case 'saved':
+        return (
+          <div className="flex items-center text-xs text-green-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            {lastSaveTime ? `Saved at ${lastSaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Session saved.'}
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="flex items-center text-xs text-red-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Error saving.
+          </div>
+        );
+      default: // idle
+        return (
+            <div className="text-xs text-[#95aac0]/70 italic">
+                Auto-saves on change.
+            </div>
+        );
+    }
+  };
 
   return (
     <aside className="w-64 md:w-72 bg-[#333e48]/90 p-4 shadow-lg flex-shrink-0 h-full overflow-y-auto border-l border-[#5c6f7e] scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-700/50">
@@ -42,6 +88,25 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           </span>
         </div>
       </div>
+
+      {/* Session State Box */}
+      <div className="mb-4">
+        <h3 className="text-sm font-medium text-[#e2a32d] mb-1">💾 Session State:</h3>
+        <div className="min-h-[44px] p-2 bg-[#212934] border border-[#5c6f7e] rounded-md flex items-center justify-between">
+            <div className="flex-grow pr-2">
+                {renderSaveStatus()}
+            </div>
+            <button
+                onClick={onSaveSession}
+                disabled={anyLoading || saveStatus === 'saving'}
+                className="px-3 py-1.5 text-xs bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                title="Manually save the current session"
+            >
+                Save Now
+            </button>
+        </div>
+      </div>
+
 
       {/* Source Reliability Section */}
       {sourceAssessments.length > 0 && (

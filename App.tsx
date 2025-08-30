@@ -13,6 +13,7 @@ import { ConfigurationPage } from './components/ConfigurationPage';
 import { SettingsModal } from './components/SettingsModal';
 import { AgenticApiService } from './services/agenticApiService.ts';
 import { SourceAssessmentModal } from './components/SourceAssessmentModal';
+import * as SessionManager from './utils/sessionManager.ts';
 
 
 import { 
@@ -28,7 +29,8 @@ import {
   UploadedFile,
   StreamEvent,
   SourceAssessment,
-  GroundingChunk
+  GroundingChunk,
+  SavedSessionState
 } from './types';
 import { DOSSIER_SYSTEM_PROMPT, DOSSIER_GENERATION_PROMPT } from './prompts';
 import { AVAILABLE_PROVIDERS_MODELS } from './models.config';
@@ -48,6 +50,7 @@ const getNumericRating = (ratingStr: string): number => {
 
 const AppInternal = (): React.ReactElement => {
   const [appPhase, setAppPhase] = useState<AppPhase>(AppPhase.LANDING);
+  const [savedSessionExists, setSavedSessionExists] = useState<boolean>(false);
   
   // Configuration State
   const [userApiKeys, setUserApiKeys] = useState<{ [key in AIProvider]?: string }>({});
@@ -72,6 +75,10 @@ const AppInternal = (): React.ReactElement => {
   const [aiReasoningStream, setAiReasoningStream] = useState<string>('');
   const [isProcessingReasoning, setIsProcessingReasoning] = useState<boolean>(false);
 
+  // Session Save State
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const saveTimeoutRef = useRef<number | null>(null);
   
   const [currentSiftQueryDetails, setCurrentSiftQueryDetails] = useState<CurrentSiftQueryDetails | null>(null);
   const [originalQueryForRestart, setOriginalQueryForRestart] = useState<OriginalQueryInfo | null>(null);
@@ -83,12 +90,105 @@ const AppInternal = (): React.ReactElement => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Check for saved session on initial load
+  useEffect(() => {
+    setSavedSessionExists(SessionManager.hasSavedSession());
+  }, []);
+
+  const performSave = useCallback(() => {
+    if (appPhase !== AppPhase.CHAT_ACTIVE || isLoading || chatMessages.length === 0) return;
+
+    setSaveStatus('saving');
+    // Short delay for UI to update to "Saving..."
+    setTimeout(() => {
+        try {
+            const sessionState: SavedSessionState = {
+                chatMessages,
+                currentSiftQueryDetails,
+                originalQueryForRestart,
+                sourceAssessments,
+                selectedProviderKey,
+                selectedModelId,
+                modelConfigParams,
+                enableGeminiPreprocessing,
+                userApiKeys,
+                apiKeyValidation,
+            };
+            SessionManager.saveSession(sessionState);
+            setSavedSessionExists(true);
+            setSaveStatus('saved');
+            setLastSaveTime(new Date());
+        } catch (e) {
+            console.error("Failed to save session:", e);
+            setSaveStatus('error');
+        }
+    }, 200);
+  }, [
+      appPhase, isLoading, chatMessages, currentSiftQueryDetails, originalQueryForRestart, sourceAssessments,
+      selectedProviderKey, selectedModelId, modelConfigParams, enableGeminiPreprocessing, userApiKeys, apiKeyValidation
+  ]);
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    if (appPhase === AppPhase.CHAT_ACTIVE && !isLoading && chatMessages.length > 0) {
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+        // Set a timeout to perform the save after 2 seconds of no changes that trigger this effect.
+        saveTimeoutRef.current = window.setTimeout(performSave, 2000);
+    }
+
+    return () => {
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+    };
+  }, [performSave, appPhase, isLoading, chatMessages.length]);
+
+  const handleManualSave = () => {
+      if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+      }
+      performSave();
+  };
+
+  const handleRestoreSession = () => {
+    const session = SessionManager.loadSession();
+    if (session) {
+      setChatMessages(session.chatMessages);
+      setCurrentSiftQueryDetails(session.currentSiftQueryDetails);
+      setOriginalQueryForRestart(session.originalQueryForRestart);
+      setSourceAssessments(session.sourceAssessments);
+      setSelectedProviderKey(session.selectedProviderKey);
+      setSelectedModelId(session.selectedModelId);
+      setModelConfigParams(session.modelConfigParams);
+      setEnableGeminiPreprocessing(session.enableGeminiPreprocessing);
+      setUserApiKeys(session.userApiKeys);
+      setApiKeyValidation(session.apiKeyValidation);
+      
+      // Restore initial config screen state from the loaded details if needed for consistency
+      if (session.currentSiftQueryDetails) {
+          setSessionTopic(session.currentSiftQueryDetails.sessionTopic);
+          setSessionContext(session.currentSiftQueryDetails.sessionContext);
+          setSessionFiles(session.currentSiftQueryDetails.sessionFiles);
+          setSessionUrls(session.currentSiftQueryDetails.sessionUrls.join('\n'));
+      }
+      
+      setAppPhase(AppPhase.CHAT_ACTIVE);
+      setLastSaveTime(new Date()); // Indicate that what is loaded is "saved" as of now.
+      setSaveStatus('saved');
+    } else {
+      alert("Could not find or load the saved session.");
+    }
+  };
+
+
   const getSelectedModelConfig = useCallback((): AIModelConfig | undefined => {
     return AVAILABLE_PROVIDERS_MODELS.find(m => m.id === selectedModelId && m.provider === selectedProviderKey);
   }, [selectedModelId, selectedProviderKey]);
 
   const handleGoHome = () => {
-    // Full reset, including API keys
+    // Full reset, including API keys and saved session
     setChatMessages([]);
     setIsLoading(false);
     setError(null);
@@ -111,11 +211,15 @@ const AppInternal = (): React.ReactElement => {
     // Clear keys and validation
     setUserApiKeys({}); 
     setApiKeyValidation({}); 
+    SessionManager.clearSession();
+    setSavedSessionExists(false);
     setAppPhase(AppPhase.LANDING); 
+    setSaveStatus('idle');
+    setLastSaveTime(null);
   };
   
   const handleNewSession = () => {
-    // Resets session but preserves API keys
+    // Resets session but preserves API keys, clears saved session
     setChatMessages([]);
     setIsLoading(false);
     setError(null);
@@ -135,7 +239,11 @@ const AppInternal = (): React.ReactElement => {
     setAiReasoningStream('');
     setIsProcessingReasoning(false);
 
+    SessionManager.clearSession();
+    setSavedSessionExists(false);
     setAppPhase(AppPhase.CONFIGURATION_SETUP);
+    setSaveStatus('idle');
+    setLastSaveTime(null);
   };
 
   const handleGetStarted = () => {
@@ -160,6 +268,20 @@ const AppInternal = (): React.ReactElement => {
   
     setAiReasoningStream('');
     setIsProcessingReasoning(false);
+
+    // Buffering logic for smoother UI updates
+    let textBufferForUiUpdate = '';
+    let lastUiUpdate = Date.now();
+    const UI_UPDATE_INTERVAL = 100; // ms
+
+    const flushUiBuffer = () => {
+        if (textBufferForUiUpdate.length > 0) {
+            accumulatedText += textBufferForUiUpdate;
+            setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: accumulatedText } : m));
+            textBufferForUiUpdate = '';
+        }
+        lastUiUpdate = Date.now();
+    };
 
     for await (const event of stream) {
       if (abortControllerRef.current?.signal.aborted) {
@@ -190,17 +312,19 @@ const AppInternal = (): React.ReactElement => {
                   const startTagIndex = streamBuffer.indexOf('<think>');
                   if (startTagIndex !== -1) {
                       const normalChunk = streamBuffer.substring(0, startTagIndex);
-                      accumulatedText += normalChunk;
-                      setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: accumulatedText } : m));
+                      textBufferForUiUpdate += normalChunk;
                       streamBuffer = streamBuffer.substring(startTagIndex + '<think>'.length);
                       inThinkBlock = true;
                       setIsProcessingReasoning(true);
                   } else {
-                      accumulatedText += streamBuffer;
-                      setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: accumulatedText } : m));
+                      textBufferForUiUpdate += streamBuffer;
                       streamBuffer = '';
                   }
               }
+          }
+
+          if (Date.now() - lastUiUpdate > UI_UPDATE_INTERVAL) {
+            flushUiBuffer();
           }
           break;
         case 'sources':
@@ -212,6 +336,8 @@ const AppInternal = (): React.ReactElement => {
           setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: `Error: ${event.error}`, isLoading: false, isError: true } : m));
           return; // Stop processing on error
         case 'final':
+          flushUiBuffer(); // Final flush to show all chunk text
+
           const newAssessmentsRaw = parseSourceAssessmentsFromMarkdown(event.fullText);
           
           let correctedAssessments = newAssessmentsRaw;
@@ -293,7 +419,7 @@ const AppInternal = (): React.ReactElement => {
           }
           setChatMessages(prev => prev.map(m => m.id === aiMessageId ? {
             ...m,
-            text: event.fullText,
+            text: event.fullText, // Use the definitive full text from the final event
             isLoading: false,
             groundingSources: event.groundingSources,
             isInitialSIFTReport: event.isInitialSIFTReport,
@@ -304,6 +430,8 @@ const AppInternal = (): React.ReactElement => {
           break;
       }
     }
+    // Final flush after loop in case stream ends without a 'final' event
+    flushUiBuffer();
   };
 
   const handleStartSession = async () => {
@@ -392,7 +520,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
   };
 
 
-  const handleSendChatMessage = async (messageText: string, command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note') => {
+  const handleSendChatMessage = async (messageText: string, command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search') => {
     if (appPhase !== AppPhase.CHAT_ACTIVE || isLoading) return;
     setError(null);
     setIsLoading(true);
@@ -493,7 +621,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
 
     const transcript = chatMessages
       .filter(m => !m.isLoading && !m.isError)
-      .map(m => `--- MESSAGE FROM: ${m.sender.toUpperCase()} (${m.timestamp.toLocaleString()}) ---\n\n${m.text}`)
+      .map(m => `--- MESSAGE FROM: ${m.sender.toUpperCase()} (${new Date(m.timestamp).toLocaleString()}) ---\n\n${m.text}`)
       .join('\n\n');
     
     // For PDF, open a new window immediately to avoid pop-up blockers.
@@ -562,7 +690,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
   };
 
   if (appPhase === AppPhase.LANDING) {
-    return <LandingPage onGetStarted={handleGetStarted} />;
+    return <LandingPage onGetStarted={handleGetStarted} onRestoreSession={handleRestoreSession} showRestoreButton={savedSessionExists} />;
   }
 
   if (appPhase === AppPhase.CONFIGURATION_SETUP) {
@@ -606,6 +734,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
       </>
     );
   }
+
+  const selectedModelConfig = getSelectedModelConfig();
 
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-[#212934] text-gray-200">
@@ -664,6 +794,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                 onStopGeneration={handleStopGeneration}
                 onRestartGeneration={handleRestartGeneration}
                 canRestart={originalQueryForRestart !== null && !isLoading}
+                supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
               />
             </div>
           </div>
@@ -682,6 +813,9 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
           onExportDossier={handleExportDossier}
           sourceAssessments={sourceAssessments}
           onSelectSource={setSelectedSourceForModal}
+          onSaveSession={handleManualSave}
+          saveStatus={saveStatus}
+          lastSaveTime={lastSaveTime}
         />
       )}
       {isSettingsModalOpen && (

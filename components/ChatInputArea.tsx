@@ -1,16 +1,18 @@
 
 
+
 import React, { useState, KeyboardEvent } from 'react';
 
 interface ChatInputAreaProps {
-  onSendMessage: (messageText: string, command?: 'another round' | 'read the room') => void;
+  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search') => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void;
   canRestart?: boolean;
+  supportsWebSearch?: boolean;
 }
 
-export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart }) => {
+export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart, supportsWebSearch }) => {
   const [inputText, setInputText] = useState('');
 
   const handleSend = () => {
@@ -20,9 +22,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
     }
   };
 
-  const handleCommand = (command: 'another round' | 'read the room') => {
+  const handleCommand = (command: 'another round' | 'read the room' | 'web_search') => {
     if (!isLoading) {
-      onSendMessage(command, command); 
+      const queryText = inputText.trim() || command.replace(/_/g, ' ');
+      onSendMessage(queryText, command); 
       setInputText(''); 
     }
   };
@@ -86,7 +89,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
       <div className="flex space-x-2">
         <button
           onClick={() => handleCommand('another round')}
-          disabled={isLoading} // Disable command buttons while AI is responding
+          disabled={isLoading}
           className="flex-1 px-3 py-2 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           aria-label="Send 'another round' command"
         >
@@ -94,11 +97,20 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
         </button>
         <button
           onClick={() => handleCommand('read the room')}
-          disabled={isLoading} // Disable command buttons while AI is responding
+          disabled={isLoading}
           className="flex-1 px-3 py-2 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           aria-label="Send 'read the room' command"
         >
           Read the Room 🧐
+        </button>
+        <button
+          onClick={() => handleCommand('web_search')}
+          disabled={isLoading || !supportsWebSearch}
+          className="flex-1 px-3 py-2 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          title={supportsWebSearch ? "Search the web for up-to-date information" : "The selected model does not support web search."}
+          aria-label="Send 'web search' command"
+        >
+          Web Search 🌐
         </button>
       </div>
     </div>

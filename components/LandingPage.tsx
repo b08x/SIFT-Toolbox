@@ -1,9 +1,10 @@
 
-
 import React from 'react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  onRestoreSession: () => void;
+  showRestoreButton: boolean;
 }
 
 const FeatureCard: React.FC<{ icon: string; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
@@ -28,7 +29,7 @@ const SiftStep: React.FC<{ letter: string; title: string; children: React.ReactN
     </div>
 );
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onRestoreSession, showRestoreButton }) => {
   return (
     <div className="bg-[#212934] text-gray-200 min-h-screen flex flex-col overflow-y-auto">
         <main className="flex-grow container mx-auto px-6 py-12">
@@ -93,12 +94,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                  <p className="text-[#95aac0] max-w-2xl mx-auto mb-8">
                     This tool uses third-party Language Model providers. You will need your own API key to proceed. Your keys are stored only in your browser for the current session and are not sent anywhere except to the selected model provider.
                  </p>
-                 <button 
-                    onClick={onGetStarted}
-                    className="px-8 py-4 bg-gradient-to-r from-[#e2a32d] to-[#c36e26] hover:from-[#f5b132] hover:to-[#d67e2a] text-white font-bold text-lg rounded-lg shadow-xl transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#c36e26]/50"
-                 >
-                    Get Started →
-                 </button>
+                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                     <button 
+                        onClick={onGetStarted}
+                        className="px-8 py-4 bg-gradient-to-r from-[#e2a32d] to-[#c36e26] hover:from-[#f5b132] hover:to-[#d67e2a] text-white font-bold text-lg rounded-lg shadow-xl transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#c36e26]/50 w-full sm:w-auto"
+                     >
+                        Get Started →
+                     </button>
+                     {showRestoreButton && (
+                         <button 
+                            onClick={onRestoreSession}
+                            className="px-8 py-4 bg-[#333e48] border border-[#5c6f7e] hover:bg-[#5c6f7e] text-white font-bold text-lg rounded-lg shadow-xl transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#5c6f7e]/50 w-full sm:w-auto"
+                         >
+                            Restore Previous Session ↩
+                         </button>
+                     )}
+                 </div>
             </section>
         </main>
         <footer className="text-center py-4 text-xs text-[#95aac0]/70 flex-shrink-0">

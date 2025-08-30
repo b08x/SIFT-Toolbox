@@ -1,5 +1,6 @@
 
 
+
 import React, { useRef, useEffect, forwardRef } from 'react';
 import { ChatMessage, SourceAssessment } from '../types';
 import { ChatMessageItem } from './ChatMessageItem';
@@ -8,14 +9,15 @@ import { ChatInputArea } from './ChatInputArea';
 interface ChatInterfaceProps {
   messages: ChatMessage[];
   sourceAssessments: SourceAssessment[];
-  onSendMessage: (messageText: string, command?: 'another round' | 'read the room') => void;
+  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search') => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void; // New prop for restarting
   canRestart?: boolean; // New prop to enable/disable restart button
+  supportsWebSearch?: boolean;
 }
 
-export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart }, ref) => {
+export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart, supportsWebSearch }, ref) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,6 +42,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ m
             onStopGeneration={onStopGeneration}
             onRestartGeneration={onRestartGeneration}
             canRestart={canRestart}
+            supportsWebSearch={supportsWebSearch}
         />
       </div>
     </div>

@@ -1,5 +1,9 @@
 
 
+
+
+
+
 import { GoogleGenAI, Part, Content } from "@google/genai";
 import OpenAI from 'openai';
 import { generateText, streamText } from 'ai';
@@ -81,11 +85,11 @@ export class AgenticApiService {
                 await openrouter.chat.completions.create({ model: 'deepseek/deepseek-chat-v3-0324:free', messages: [{role: 'user', content: 'test'}], max_tokens: 5});
             } else if (provider === AIProvider.MISTRAL) {
                 const mistralProvider = createMistral({ apiKey: key });
+                // FIX: The 'ai' SDK with the Mistral provider appears to expect snake_case for max_tokens, not camelCase.
                 await generateText({
                     model: mistralProvider('mistral-small-latest'),
                     prompt: 'test',
-                    // FIX: The 'ai' SDK uses `maxCompletionTokens` for this version.
-                    maxCompletionTokens: 10,
+                    max_tokens: 10,
                 });
             }
             return { isValid: true };
@@ -229,7 +233,7 @@ export class AgenticApiService {
         signal: AbortSignal;
         systemPromptOverride?: string;
         originalQueryForRestart?: OriginalQueryInfo | null;
-        command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note';
+        command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search';
         cacheKey?: string;
     }): AsyncGenerator<StreamEvent> {
         try {
@@ -303,6 +307,8 @@ export class AgenticApiService {
                  } else if (command === 'another round' || command === 'read the room') {
                     const originalQueryContext = originalQueryForRestart?.text ? `The original query was about: "${originalQueryForRestart.text.substring(0, 150)}..."` : "The original query involved uploaded files.";
                     promptForThisTurn = `Based on the previous SIFT analysis and our conversation, please execute the '${command}' command. ${originalQueryContext}. Refer to the full conversation history to find additional sources or summarize opinion as specified in the system prompt instructions.`;
+                 } else if (command === 'web_search') {
+                    promptForThisTurn = `Please perform a web search to provide the most current and relevant information for the following query. Summarize your findings and cite your sources. User Query: "${query as string}"`;
                  }
                  mainExecutionPrompt = promptForThisTurn;
                  promptPartsForApi.push({ text: mainExecutionPrompt });
@@ -365,6 +371,7 @@ export class AgenticApiService {
                     }));
                     messagesForApi.push({ role: 'user', content: mainExecutionPrompt });
 
+                    // FIX: The 'ai' SDK with the Mistral provider appears to expect snake_case for max_tokens, not camelCase.
                     const { textStream } = await streamText({
                         model: mistralModel,
                         system: systemPromptForApi,
@@ -372,8 +379,7 @@ export class AgenticApiService {
                         abortSignal: signal,
                         temperature: modelConfigParams.temperature as number,
                         topP: modelConfigParams.topP as number,
-                        // FIX: The 'ai' SDK for this version uses `maxCompletionTokens`. The value comes from modelConfigParams.max_tokens.
-                        maxCompletionTokens: modelConfigParams.max_tokens as number,
+                        max_tokens: modelConfigParams.max_tokens as number,
                     });
                     
                     yield { type: 'status', message: 'Main Analysis: Analyzing and synthesizing information...' };
