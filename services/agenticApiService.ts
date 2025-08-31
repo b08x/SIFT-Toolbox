@@ -79,11 +79,11 @@ export class AgenticApiService {
                 await openrouter.chat.completions.create({ model: 'deepseek/deepseek-chat-v3-0324:free', messages: [{role: 'user', content: 'test'}], max_tokens: 5});
             } else if (provider === AIProvider.MISTRAL) {
                 const mistralProvider = createMistral({ apiKey: key });
-                // FIX: The 'ai' SDK with the Mistral provider expects camelCase for maxTokens, not snake_case.
+                // @FIX: The `generateText` function expects `max_tokens` (snake_case) for the Mistral provider, not `maxTokens`.
                 await generateText({
                     model: mistralProvider('mistral-small-latest'),
                     prompt: 'test',
-                    maxTokens: 10,
+                    max_tokens: 10,
                 });
             }
             return { isValid: true };
@@ -365,7 +365,7 @@ export class AgenticApiService {
                     }));
                     messagesForApi.push({ role: 'user', content: mainExecutionPrompt });
 
-                    // FIX: The 'ai' SDK with the Mistral provider expects camelCase for maxTokens, not snake_case.
+                    // @FIX: The `streamText` function expects `max_tokens` (snake_case) for the Mistral provider, not `maxTokens`.
                     const { textStream } = await streamText({
                         model: mistralModel,
                         system: systemPromptForApi,
@@ -373,7 +373,7 @@ export class AgenticApiService {
                         abortSignal: signal,
                         temperature: modelConfigParams.temperature as number,
                         topP: modelConfigParams.topP as number,
-                        maxTokens: modelConfigParams.max_tokens as number,
+                        max_tokens: modelConfigParams.max_tokens as number,
                     });
                     
                     yield { type: 'status', message: 'Main Analysis: Analyzing and synthesizing information...' };
