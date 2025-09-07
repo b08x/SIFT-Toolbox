@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -37,7 +39,7 @@ import {
 import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts';
 import { AVAILABLE_PROVIDERS_MODELS } from './models.config';
 import { downloadMarkdown, downloadPdfWithBrowserPrint } from './utils/download';
-import { parseSourceAssessmentsFromMarkdown } from './utils/apiHelpers.ts';
+import { parseSourceAssessmentsFromMarkdown, correctRedirectLinksInMarkdown } from './utils/apiHelpers.ts';
 
 // Helper function to parse rating string into a comparable number
 const getNumericRating = (ratingStr: string): number => {
@@ -340,59 +342,14 @@ const AppInternal = (): React.ReactElement => {
         case 'final':
           flushUiBuffer(); // Final flush to show all chunk text
 
-          const newAssessmentsRaw = parseSourceAssessmentsFromMarkdown(event.fullText);
-          
-          let correctedAssessments = newAssessmentsRaw;
+          let correctedFullText = event.fullText;
           if (event.groundingSources && event.groundingSources.length > 0) {
-            const directSourcesMap = new Map<string, string>(); // Map from normalized title to direct URL
-            event.groundingSources.forEach(source => {
-              if (source.web?.title && source.web?.uri) {
-                const normalizedTitle = source.web.title.trim().toLowerCase();
-                if (!directSourcesMap.has(normalizedTitle)) {
-                  directSourcesMap.set(normalizedTitle, source.web.uri);
-                }
-              }
-            });
-
-            if (directSourcesMap.size > 0) {
-              correctedAssessments = newAssessmentsRaw.map(assessment => {
-                if (assessment.url.includes('vertexaisearch.cloud.google.com')) {
-                  const assessmentTitleNormalized = assessment.name.trim().toLowerCase();
-                  
-                  // 1. Exact match
-                  if (directSourcesMap.has(assessmentTitleNormalized)) {
-                    return { ...assessment, url: directSourcesMap.get(assessmentTitleNormalized)! };
-                  }
-
-                  // 2. Partial match
-                  let bestMatchUrl: string | null = null;
-                  let highestMatchScore = 0;
-
-                  for (const [sourceTitle, directUrl] of directSourcesMap.entries()) {
-                    let score = 0;
-                    if (assessmentTitleNormalized.includes(sourceTitle)) {
-                      score = sourceTitle.length / assessmentTitleNormalized.length;
-                    } else if (sourceTitle.includes(assessmentTitleNormalized)) {
-                      score = assessmentTitleNormalized.length / sourceTitle.length;
-                    }
-                    
-                    if (score > highestMatchScore) {
-                      highestMatchScore = score;
-                      bestMatchUrl = directUrl;
-                    }
-                  }
-
-                  // Threshold to accept partial match
-                  if (bestMatchUrl && highestMatchScore > 0.7) {
-                    return { ...assessment, url: bestMatchUrl };
-                  }
-                }
-                return assessment;
-              });
-            }
+              correctedFullText = correctRedirectLinksInMarkdown(event.fullText, event.groundingSources);
           }
 
-          if (correctedAssessments.length > 0) {
+          const newAssessments = parseSourceAssessmentsFromMarkdown(correctedFullText);
+
+          if (newAssessments.length > 0) {
               setSourceAssessments(prevAssessments => {
                   const updatedAssessmentsMap = new Map<string, Omit<SourceAssessment, 'index'>>();
                   
@@ -400,7 +357,7 @@ const AppInternal = (): React.ReactElement => {
                   prevAssessments.forEach(a => updatedAssessmentsMap.set(a.url, a));
                   
                   // Add/update with new assessments. `Map` handles uniqueness by key.
-                  correctedAssessments.forEach(newA => {
+                  newAssessments.forEach(newA => {
                       const existing = updatedAssessmentsMap.get(newA.url);
                       updatedAssessmentsMap.set(newA.url, { ...existing, ...newA });
                   });
@@ -421,7 +378,7 @@ const AppInternal = (): React.ReactElement => {
           }
           setChatMessages(prev => prev.map(m => m.id === aiMessageId ? {
             ...m,
-            text: event.fullText, // Use the definitive full text from the final event
+            text: correctedFullText, // Use the definitive corrected full text
             isLoading: false,
             groundingSources: event.groundingSources,
             isInitialSIFTReport: event.isInitialSIFTReport,

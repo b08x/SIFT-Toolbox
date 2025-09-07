@@ -43,7 +43,7 @@ export class AgenticApiService {
         const openaiKeyToUse = this.userApiKeys[AIProvider.OPENAI];
         const openrouterKeyToUse = this.userApiKeys[AIProvider.OPENROUTER];
         
-        if ((this.provider === AIProvider.GOOGLE_GEMINI || (this.provider === AIProvider.OPENROUTER && this.enableGeminiPreprocessing)) && geminiKeyToUse) {
+        if ((this.provider === AIProvider.GOOGLE_GEMINI || this.enableGeminiPreprocessing) && geminiKeyToUse) {
             this.geminiAi = new GoogleGenAI({ apiKey: geminiKeyToUse });
         }
         if (this.provider === AIProvider.OPENAI && openaiKeyToUse) {
@@ -79,7 +79,7 @@ export class AgenticApiService {
                 await openrouter.chat.completions.create({ model: 'deepseek/deepseek-chat-v3-0324:free', messages: [{role: 'user', content: 'test'}], max_tokens: 5});
             } else if (provider === AIProvider.MISTRAL) {
                 const mistralProvider = createMistral({ apiKey: key });
-                // @FIX: The `generateText` function expects `max_tokens` (snake_case) for the Mistral provider, not `maxTokens`.
+                // Fix: Per the type error, the `generateText` function expects `max_tokens` (snake_case) for the Mistral provider, not `maxTokens`.
                 await generateText({
                     model: mistralProvider('mistral-small-latest'),
                     prompt: 'test',
@@ -245,7 +245,7 @@ export class AgenticApiService {
                 const initialQuery = query as OriginalQueryInfo;
                 effectiveReportTypeForPrompt = initialQuery.reportType;
 
-                if (this.provider === AIProvider.OPENROUTER && this.enableGeminiPreprocessing) {
+                if (!this.modelConfig.supportsGoogleSearch && this.enableGeminiPreprocessing) {
                     let preprocessedSources: GroundingChunk[] = [];
                     // The internal event type for the generator
                     type PreprocessingEvent = StreamEvent | { type: 'preprocessed_sources', sources: GroundingChunk[] };
@@ -286,7 +286,7 @@ export class AgenticApiService {
                     const mediaParts = originalPromptParts.filter(p => 'inlineData' in p);
                     promptPartsForApi.push(textPart, ...mediaParts);
 
-                } else { // The original path for Gemini or non-preprocessed OpenRouter
+                } else { // The original path for Gemini or other models with search, or when preprocessing is off
                     const { promptParts, textPrompt } = this.constructPromptFromQuery(initialQuery);
                     promptPartsForApi = promptParts;
                     mainExecutionPrompt = textPrompt;
@@ -365,7 +365,7 @@ export class AgenticApiService {
                     }));
                     messagesForApi.push({ role: 'user', content: mainExecutionPrompt });
 
-                    // @FIX: The `streamText` function expects `max_tokens` (snake_case) for the Mistral provider, not `maxTokens`.
+                    // Fix: Per the type error, the `streamText` function expects `max_tokens` (snake_case) for the Mistral provider, not `maxTokens`.
                     const { textStream } = await streamText({
                         model: mistralModel,
                         system: systemPromptForApi,

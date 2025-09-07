@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { Content } from '@google/genai';
-import { AIProvider, AIModelConfig, ChatMessage, SourceAssessment, ParsedReportSection } from '../types';
+import { AIProvider, AIModelConfig, ChatMessage, SourceAssessment, ParsedReportSection, GroundingChunk } from '../types';
 import { SIFT_CHAT_SYSTEM_PROMPT } from '../prompts';
 import { AVAILABLE_PROVIDERS_MODELS } from '../models.config';
 
@@ -225,4 +225,65 @@ export const parseSiftFullCheckReport = (markdownText: string): ParsedReportSect
   });
 
   return filteredSectionsResult.filter(s => s.content.trim() !== '' || s.title === "Report Information");
+};
+
+export const correctRedirectLinksInMarkdown = (markdownText: string, groundingSources: GroundingChunk[]): string => {
+    if (!groundingSources || groundingSources.length === 0) {
+        return markdownText;
+    }
+
+    const directSourcesMap = new Map<string, string>(); // Map from normalized title to direct URL
+    groundingSources.forEach(source => {
+        if (source.web?.title && source.web?.uri) {
+            // Normalize title by removing extra spaces and making it lowercase
+            const normalizedTitle = source.web.title.trim().toLowerCase();
+            if (!directSourcesMap.has(normalizedTitle)) {
+                directSourcesMap.set(normalizedTitle, source.web.uri);
+            }
+        }
+    });
+
+    if (directSourcesMap.size === 0) {
+        return markdownText;
+    }
+
+    // Regex to find Markdown links `[text](url)` but not image links `![text](url)`
+    const linkRegex = /(?<!\!)\[([^\]]+)\]\((https?:\/\/vertexaisearch\.cloud\.google\.com[^)]+)\)/g;
+
+    return markdownText.replace(linkRegex, (match, linkText, url) => {
+        const linkTitleNormalized = linkText.trim().toLowerCase();
+        
+        // 1. Exact match on title
+        if (directSourcesMap.has(linkTitleNormalized)) {
+            const directUrl = directSourcesMap.get(linkTitleNormalized);
+            return `[${linkText}](${directUrl})`;
+        }
+
+        // 2. Partial match for cases where titles are slightly different
+        let bestMatchUrl: string | null = null;
+        let highestMatchScore = 0;
+
+        for (const [sourceTitle, directUrl] of directSourcesMap.entries()) {
+            let score = 0;
+            // Simple substring matching score
+            if (linkTitleNormalized.includes(sourceTitle)) {
+                score = sourceTitle.length / linkTitleNormalized.length;
+            } else if (sourceTitle.includes(linkTitleNormalized)) {
+                score = linkTitleNormalized.length / sourceTitle.length;
+            }
+            
+            if (score > highestMatchScore) {
+                highestMatchScore = score;
+                bestMatchUrl = directUrl;
+            }
+        }
+        
+        // Use a threshold to avoid incorrect replacements
+        if (bestMatchUrl && highestMatchScore > 0.7) {
+            return `[${linkText}](${bestMatchUrl})`;
+        }
+
+        // If no confident match is found, return the original link to avoid breaking it
+        return match; 
+    });
 };

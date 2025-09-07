@@ -36,6 +36,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setLocalKeys(userApiKeys);
     }, [userApiKeys]);
 
+    useEffect(() => {
+      const model = availableModels.find(m => m.id === selectedModelId);
+      if (model && !model.supportsGoogleSearch) {
+        setEnableGeminiPreprocessing(true);
+      }
+    }, [selectedModelId, availableModels, setEnableGeminiPreprocessing]);
+
+
     const handleProviderChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const newProvider = event.target.value as AIProvider;
         setSelectedProviderKey(newProvider);
@@ -150,19 +158,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </select>
                             </div>
                             
+                            {/* Main API key for the selected provider */}
                             {selectedProviderKey === AIProvider.GOOGLE_GEMINI && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key", "Enter your Gemini API Key", <p className="text-xs text-[#95aac0] mt-1">Get key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[#e2a32d] underline">Google AI Studio</a>.</p>)}
                             {selectedProviderKey === AIProvider.OPENAI && renderApiKeyInput(AIProvider.OPENAI, "OpenAI API Key", "Enter your OpenAI API Key")}
                             {selectedProviderKey === AIProvider.MISTRAL && renderApiKeyInput(AIProvider.MISTRAL, "Mistral API Key", "Enter your Mistral API Key")}
+                            {selectedProviderKey === AIProvider.OPENROUTER && renderApiKeyInput(AIProvider.OPENROUTER, "OpenRouter API Key", "Enter your OpenRouter API Key")}
                             
-                            {selectedProviderKey === AIProvider.OPENROUTER && (
+                            {/* Gemini Preprocessing option for non-Google models */}
+                            {selectedProviderKey !== AIProvider.GOOGLE_GEMINI && (
                                 <>
-                                    {renderApiKeyInput(AIProvider.OPENROUTER, "OpenRouter API Key", "Enter your OpenRouter API Key")}
                                     <div className="pt-2">
                                         <label htmlFor="gemini-preproc" className="flex items-center space-x-2 cursor-pointer">
                                             <input type="checkbox" id="gemini-preproc" checked={enableGeminiPreprocessing} onChange={(e) => setEnableGeminiPreprocessing(e.target.checked)} className="h-4 w-4 rounded border-gray-500 text-[#c36e26] focus:ring-[#c36e26] accent-[#c36e26]" />
                                             <span className="text-sm font-medium text-gray-200">Enable Gemini Preprocessing</span>
                                         </label>
-                                        <p className="text-xs text-[#95aac0] mt-1">Use Gemini for SIFT grounding. Requires a valid Google Gemini API key below.</p>
+                                        <p className="text-xs text-[#95aac0] mt-1">Use Gemini for web search grounding with non-Google models. Requires a valid Google Gemini API key below.</p>
                                     </div>
                                     {enableGeminiPreprocessing && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key (for Preprocessing)", "Enter your Gemini API Key")}
                                 </>

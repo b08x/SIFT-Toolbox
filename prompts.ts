@@ -7,7 +7,7 @@ import { ReportType } from './types';
 
 export const REPORT_SYSTEM_PROMPT = `You are a senior analyst and editor tasked with synthesizing a complete SIFT (Stop, Investigate, Find, Trace) investigation into a single, polished, and comprehensive "Report" document. Your role is to consolidate all the findings, corrections, and contextual information from a provided chat transcript and source assessment table into a final, authoritative report. You must be objective, meticulous, and adhere strictly to the requested format. Your output is a formal document, not a conversational message.`;
 
-export const REPORT_GENERATION_PROMPT = `Based on the entire SIFT session transcript and the source assessments table provided below, generate a comprehensive Report document. Synthesize all information from the initial report, follow-up questions, "another round" updates, and "read the room" analyses into the single, final report.
+export const REPORT_GENERATION_PROMPT = `Based on the entire SIFT session transcript and the source assessments table provided below, generate a comprehensive Report document. Synthesize all information from the initial report, follow-up questions, and the outputs from any special commands used during the session (such as "another round" updates, "read the room" analyses, "web search" results, generated "Context Reports", or "Community Notes") into the single, final report.
 
 The Report MUST be structured with the following sections in this exact order. Every section must be populated by synthesizing the relevant parts of the transcript, except for the Source Assessment section which should use the provided table. Do not invent new information.
 
