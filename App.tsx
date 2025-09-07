@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -33,7 +34,7 @@ import {
   GroundingChunk,
   SavedSessionState
 } from './types';
-import { DOSSIER_SYSTEM_PROMPT, DOSSIER_GENERATION_PROMPT } from './prompts';
+import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts';
 import { AVAILABLE_PROVIDERS_MODELS } from './models.config';
 import { downloadMarkdown, downloadPdfWithBrowserPrint } from './utils/download';
 import { parseSourceAssessmentsFromMarkdown } from './utils/apiHelpers.ts';
@@ -70,7 +71,7 @@ const AppInternal = (): React.ReactElement => {
   // Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isGeneratingDossier, setIsGeneratingDossier] = useState<boolean>(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [llmStatusMessage, setLlmStatusMessage] = useState<string | null>(null);
   const [aiReasoningStream, setAiReasoningStream] = useState<string>('');
@@ -611,19 +612,28 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
   };
 
-  const handleExportDossier = async (format: 'md' | 'pdf') => {
+  const handleExportReport = async (format: 'md' | 'pdf') => {
     if (chatMessages.length === 0) {
       alert("No session content to export.");
       return;
     }
-    setIsGeneratingDossier(true);
-    setLlmStatusMessage("Generating final dossier...");
+    setIsGeneratingReport(true);
+    setLlmStatusMessage("Generating final report...");
     setError(null);
 
     const transcript = chatMessages
       .filter(m => !m.isLoading && !m.isError)
       .map(m => `--- MESSAGE FROM: ${m.sender.toUpperCase()} (${new Date(m.timestamp).toLocaleString()}) ---\n\n${m.text}`)
       .join('\n\n');
+
+    let sourceAssessmentsTable = 'No sources were formally assessed in this session.';
+    if (sourceAssessments.length > 0) {
+      const header = `| Index | Source | Usefulness Assessment | Notes | Rating (1-5) |\n|---|---|---|---|---|`;
+      const rows = sourceAssessments.map(s => 
+        `| ${s.index} | [${s.name}](${s.url}) | ${s.assessment.replace(/\|/g, '\\|')} | ${s.notes.replace(/\|/g, '\\|')} | ${s.rating} |`
+      ).join('\n');
+      sourceAssessmentsTable = `${header}\n${rows}`;
+    }
     
     // For PDF, open a new window immediately to avoid pop-up blockers.
     let printWindow: Window | null = null;
@@ -633,60 +643,63 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             const errorText = "Could not open new window. Please disable pop-up blockers and try again.";
             setError(errorText);
             setLlmStatusMessage(errorText);
-            setIsGeneratingDossier(false);
+            setIsGeneratingReport(false);
             return;
         }
-        printWindow.document.write('<html><head><title>Generating SIFT Dossier...</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;margin:0;background-color:#212934;color:#e2a32d}.container{text-align:center}.spinner{border:4px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#e2a32d;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 20px}@keyframes spin{to{transform:rotate(360deg)}}h1{color:#f5b132}p{color:#95aac0}</style></head><body><div class="container"><div class="spinner"></div><h1>Generating Dossier...</h1><p>Please wait, this may take a moment.</p></div></body></html>');
+        printWindow.document.write('<html><head><title>Generating SIFT Report...</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;margin:0;background-color:#212934;color:#e2a32d}.container{text-align:center}.spinner{border:4px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#e2a32d;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 20px}@keyframes spin{to{transform:rotate(360deg)}}h1{color:#f5b132}p{color:#95aac0}</style></head><body><div class="container"><div class="spinner"></div><h1>Generating Report...</h1><p>Please wait, this may take a moment.</p></div></body></html>');
     }
 
     try {
-        const dossierPrompt = DOSSIER_GENERATION_PROMPT.replace('[TRANSCRIPT]', transcript);
-        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, false); // No preprocessing for dossier
+        const reportPrompt = REPORT_GENERATION_PROMPT
+            .replace('[TRANSCRIPT]', transcript)
+            .replace('[SOURCE_ASSESSMENTS_TABLE]', sourceAssessmentsTable);
+
+        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, false); // No preprocessing for report
         const stream = service.streamSiftAnalysis({
             isInitialQuery: false,
-            query: dossierPrompt,
+            query: reportPrompt,
             fullChatHistory: [], 
             modelConfigParams: { ...modelConfigParams, temperature: 0.2 },
             signal: new AbortController().signal,
-            systemPromptOverride: DOSSIER_SYSTEM_PROMPT,
+            systemPromptOverride: REPORT_SYSTEM_PROMPT,
         });
 
-        let dossierText = '';
+        let reportText = '';
         for await (const event of stream) {
             if (event.type === 'chunk') {
-                dossierText += event.text;
+                reportText += event.text;
             } else if (event.type === 'final') {
-                dossierText = event.fullText;
+                reportText = event.fullText;
             } else if (event.type === 'error') {
                 throw new Error(event.error);
             }
         }
       
-      if (!dossierText.trim()) {
-        throw new Error("The AI returned an empty dossier.");
+      if (!reportText.trim()) {
+        throw new Error("The AI returned an empty report.");
       }
 
-      const filenameBase = `SIFT_Dossier_${(sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}`;
+      const filenameBase = `SIFT_Report_${(sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}`;
       
       if (format === 'md') {
-        downloadMarkdown(dossierText, `${filenameBase}.md`);
-        setLlmStatusMessage("Dossier exported successfully as Markdown.");
+        downloadMarkdown(reportText, `${filenameBase}.md`);
+        setLlmStatusMessage("Report exported successfully as Markdown.");
       } else if (format === 'pdf' && printWindow) {
-        const dossierTitle = `## Dossier: ${sessionTopic || 'Untitled Session'}\n\n**Generated:** ${new Date().toLocaleString()}\n\n---\n\n`;
-        downloadPdfWithBrowserPrint(dossierTitle + dossierText, `${filenameBase}.pdf`, printWindow);
-        setLlmStatusMessage("Dossier sent to print dialog.");
+        const reportTitle = `## Report: ${sessionTopic || 'Untitled Session'}\n\n**Generated:** ${new Date().toLocaleString()}\n\n---\n\n`;
+        downloadPdfWithBrowserPrint(reportTitle + reportText, `${filenameBase}.pdf`, printWindow);
+        setLlmStatusMessage("Report sent to print dialog.");
       }
 
     } catch (e) {
-      console.error("Dossier export failed:", e);
-      const errorText = `Failed to generate dossier: ${e instanceof Error ? e.message : String(e)}`;
+      console.error("Report export failed:", e);
+      const errorText = `Failed to generate report: ${e instanceof Error ? e.message : String(e)}`;
       setError(errorText);
       setLlmStatusMessage(errorText);
       if (printWindow && !printWindow.closed) {
           printWindow.document.body.innerHTML = `<h1>Error</h1><p>${errorText}</p><p>You may close this tab.</p>`;
       }
     } finally {
-      setIsGeneratingDossier(false);
+      setIsGeneratingReport(false);
     }
   };
 
@@ -810,8 +823,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
           onGenerateContextReport={() => handleSendChatMessage("ACTION: Generate Context Report", 'generate_context_report')}
           onGenerateCommunityNote={() => handleSendChatMessage("ACTION: Generate Community Note", 'generate_community_note')}
           isLoading={isLoading}
-          isGeneratingDossier={isGeneratingDossier}
-          onExportDossier={handleExportDossier}
+          isGeneratingReport={isGeneratingReport}
+          onExportReport={handleExportReport}
           sourceAssessments={sourceAssessments}
           onSelectSource={setSelectedSourceForModal}
           onSaveSession={handleManualSave}

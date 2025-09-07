@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { SourceAssessment } from '../types';
 
@@ -7,8 +8,8 @@ interface RightSidebarProps {
   onGenerateContextReport: () => void;
   onGenerateCommunityNote: () => void;
   isLoading: boolean; // To disable buttons and show pulse
-  isGeneratingDossier: boolean;
-  onExportDossier: (format: 'md' | 'pdf') => void;
+  isGeneratingReport: boolean;
+  onExportReport: (format: 'md' | 'pdf') => void;
   sourceAssessments: SourceAssessment[];
   onSelectSource: (source: SourceAssessment) => void;
   onSaveSession: () => void;
@@ -21,15 +22,15 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   onGenerateContextReport,
   onGenerateCommunityNote,
   isLoading,
-  isGeneratingDossier,
-  onExportDossier,
+  isGeneratingReport,
+  onExportReport,
   sourceAssessments,
   onSelectSource,
   onSaveSession,
   saveStatus,
   lastSaveTime,
 }) => {
-  const anyLoading = isLoading || isGeneratingDossier;
+  const anyLoading = isLoading || isGeneratingReport;
 
   const renderSaveStatus = () => {
     switch (saveStatus) {
@@ -162,26 +163,26 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             <h3 className="text-sm font-medium text-[#e2a32d] mb-2">📤 Export:</h3>
             <div className="space-y-3">
                  <button
-                    onClick={() => onExportDossier('md')}
+                    onClick={() => onExportReport('md')}
                     disabled={anyLoading}
                     className="w-full flex items-center justify-center p-2.5 text-sm bg-[#c36e26] hover:bg-[#d67e2a] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#d67e2a] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                    aria-label="Export dossier as a Markdown file"
+                    aria-label="Export report as a Markdown file"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                     </svg>
-                    Export Dossier (MD)
+                    Export Report (MD)
                 </button>
                  <button
-                    onClick={() => onExportDossier('pdf')}
+                    onClick={() => onExportReport('pdf')}
                     disabled={anyLoading}
                     className="w-full flex items-center justify-center p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                    aria-label="Export dossier as a PDF file"
+                    aria-label="Export report as a PDF file"
                 >
                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9.75 6.75h9.75c.621 0 1.125-.504 1.125-1.125V6.375c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v10.25c0 .621.504 1.125 1.125 1.125z" />
                     </svg>
-                    Export Dossier (PDF)
+                    Export Report (PDF)
                 </button>
             </div>
         </div>

@@ -1,4 +1,5 @@
 
+
 import { marked } from 'marked';
 
 export const downloadMarkdown = (content: string, filename: string) => {
@@ -29,7 +30,7 @@ export const downloadPdfWithBrowserPrint = (markdownContent: string, filename: s
     printDoc.write(`
         <html>
             <head>
-                <title>${filename}</title>
+                <title>${filename.replace('.pdf', '')}</title>
                 <style>
                     /* Print-friendly styles */
                     @media print {

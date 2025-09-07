@@ -5,13 +5,13 @@ import { ReportType } from './types';
 // Note: These prompts are extensive and directly transcribed/adapted from the user-provided OCR.
 // They instruct the Gemini model on how to perform SIFT analysis and structure its response.
 
-export const DOSSIER_SYSTEM_PROMPT = `You are a senior analyst and editor tasked with synthesizing a complete SIFT (Stop, Investigate, Find, Trace) investigation into a single, polished, and comprehensive "Dossier" document. Your role is to consolidate all the findings, corrections, and contextual information from a provided chat transcript into a final, authoritative report. You must be objective, meticulous, and adhere strictly to the requested format. Your output is a formal document, not a conversational message.`;
+export const REPORT_SYSTEM_PROMPT = `You are a senior analyst and editor tasked with synthesizing a complete SIFT (Stop, Investigate, Find, Trace) investigation into a single, polished, and comprehensive "Report" document. Your role is to consolidate all the findings, corrections, and contextual information from a provided chat transcript and source assessment table into a final, authoritative report. You must be objective, meticulous, and adhere strictly to the requested format. Your output is a formal document, not a conversational message.`;
 
-export const DOSSIER_GENERATION_PROMPT = `Based on the entire SIFT session transcript provided below, generate a comprehensive Dossier document. Synthesize all information from the initial report, follow-up questions, "another round" updates, and "read the room" analyses into the single, final report.
+export const REPORT_GENERATION_PROMPT = `Based on the entire SIFT session transcript and the source assessments table provided below, generate a comprehensive Report document. Synthesize all information from the initial report, follow-up questions, "another round" updates, and "read the room" analyses into the single, final report.
 
-The Dossier MUST be structured with the following sections in this exact order. Every section must be populated by synthesizing the relevant parts of the transcript. Do not invent new information.
+The Report MUST be structured with the following sections in this exact order. Every section must be populated by synthesizing the relevant parts of the transcript, except for the Source Assessment section which should use the provided table. Do not invent new information.
 
-**Dossier Structure:**
+**Report Structure:**
 
 1.  **Overarching Claim Analysis:**
     *   Identify the central claim of the investigation from the beginning of the transcript.
@@ -38,11 +38,10 @@ The Dossier MUST be structured with the following sections in this exact order. 
     *   List any unresolved questions or potential avenues for further investigation mentioned in the session.
 
 7.  **🔴 Assessment of Source Usefulness:**
-    *   Create a Markdown table with these exact headers: \`| Source | Usefulness Assessment | Notes | Rating |\`
-    *   Compile a comprehensive list of all sources assessed during the session.
+    *   **CRITICAL INSTRUCTION:** Use the exact Markdown table provided below under "--- SOURCE ASSESSMENTS TABLE ---" to populate this section. Do not modify its content, just reproduce it here.
 
 8.  **📜 Revised Summary (Corrected & Contextualized):**
-    *   Write a multi-paragraph narrative that presents a complete, corrected, and contextualized overview of the topic, integrating all findings from the session. This is the main summary of the dossier.
+    *   Write a multi-paragraph narrative that presents a complete, corrected, and contextualized overview of the topic, integrating all findings from the session. This is the main summary of the report.
 
 9.  **🧭 Notes on the Information Environment:**
     *   Synthesize any "read the room" analysis from the transcript.
@@ -61,6 +60,10 @@ The Dossier MUST be structured with the following sections in this exact order. 
 --- CHAT TRANSCRIPT ---
 [TRANSCRIPT]
 --- END TRANSCRIPT ---
+
+--- SOURCE ASSESSMENTS TABLE ---
+[SOURCE_ASSESSMENTS_TABLE]
+--- END SOURCE ASSESSMENTS TABLE ---
 `;
 
 export const SESSION_SUMMARY_SYSTEM_PROMPT = `
