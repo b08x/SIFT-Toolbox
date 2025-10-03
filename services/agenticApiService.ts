@@ -93,25 +93,32 @@ export class AgenticApiService {
             let finalErrorText = `Validation failed: ${errorText}`; // Default message
 
             if (e instanceof OpenAI.APIError) {
-                if (e.status === 401) {
-                    finalErrorText = "Authentication failed (401). Please ensure your API key is correct and active.";
-                } else if (e.status === 429) {
-                     if (provider === AIProvider.OPENROUTER) {
-                        finalErrorText = "Validation failed due to rate limits (429). This is common with free models. If your key is correct, you can try again later or proceed with the session, but you may still encounter errors.";
-                    } else {
-                        finalErrorText = "Validation failed due to a rate limit error (429) from the provider. Please try again later or check your key's status.";
-                    }
-                } else if (e.status === 404) {
-                    finalErrorText = `The validation model was not found (404). This may be a temporary issue with the provider. Details: ${errorText}`;
-                } else {
-                    finalErrorText = `An API error occurred during validation (Status ${e.status}): ${errorText}`;
+                switch (e.status) {
+                    case 401:
+                        finalErrorText = "Authentication failed (401). Please ensure your API key is correct and active.";
+                        break;
+                    case 429:
+                        if (provider === AIProvider.OPENROUTER) {
+                            finalErrorText = "Validation failed due to rate limits (429). This is common with free models. If your key is correct, you can try again later or proceed with the session, but you may still encounter errors.";
+                        } else {
+                            finalErrorText = "Validation failed due to a rate limit error (429) from the provider. Please try again later or check your key's status.";
+                        }
+                        break;
+                    case 404:
+                        finalErrorText = `The validation model was not found (404). This may be a temporary issue with the provider. Details: ${errorText}`;
+                        break;
+                    default:
+                        finalErrorText = `An API error occurred during validation (Status ${e.status}): ${errorText}`;
+                        break;
                 }
-            } else if (errorText.includes('429')) { // Fallback for non-APIError rate limit messages
-                 if (provider === AIProvider.OPENROUTER) {
+            } else if (errorText.includes('429') || errorText.toLowerCase().includes('resource_exhausted')) { // Fallback for non-APIError rate limit messages
+                if (provider === AIProvider.OPENROUTER) {
                     finalErrorText = "Key validation failed with a 429 error from OpenRouter. The test model is likely rate-limited. If you are sure your key is correct, you can try to proceed, but you may still encounter errors. Consider trying again later or checking your OpenRouter account dashboard.";
                 } else {
                     finalErrorText = "Could not validate key due to a rate limit error (429) from the provider. This can happen with free models. Please try again later or check your key's status on the provider's website.";
                 }
+            } else if (errorText.toLowerCase().includes('api key not valid') || errorText.toLowerCase().includes('permissiondenied')) {
+                finalErrorText = "Authentication or permission error. Your API key might be invalid or lacks necessary permissions. Please check the key and your account status on the provider's website.";
             }
             return { isValid: false, error: finalErrorText };
         }
@@ -441,17 +448,45 @@ export class AgenticApiService {
                  yield { type: 'status', message: 'Generation cancelled by user.' };
             } else {
                 const errorText = e instanceof Error ? e.message : String(e);
-                let finalErrorText = errorText;
+                let finalErrorText = `An unexpected error occurred: ${errorText}`; // Default with more context
                 console.error("Agentic API call failed:", e);
                 
-                const isRateLimitError = (e instanceof OpenAI.APIError && e.status === 429) || errorText.includes('429');
-        
-                if (isRateLimitError) {
-                    if (this.provider === AIProvider.OPENROUTER) {
-                        finalErrorText = `OpenRouter returned a 429 error. This usually means the selected model is rate-limited or temporarily unavailable. This is common for free models. Please try again in a few minutes, choose a different model in Settings, or check your OpenRouter account for usage limits.`;
-                    } else {
-                        finalErrorText = "The model provider returned a rate limit error (429). This can happen with free models under heavy load or if usage limits are exceeded. Please try again in a few minutes, select a different model in Settings, or check your API key's usage on the provider's website.";
+                // Specific check for OpenAI/OpenRouter API errors
+                if (e instanceof OpenAI.APIError) {
+                    switch (e.status) {
+                        case 401:
+                            finalErrorText = "Authentication failed (401). Your API key is invalid, expired, or has been revoked. Please verify your key in Settings.";
+                            break;
+                        case 403:
+                            finalErrorText = `Permission denied (403). Your API key may not have permission to use the model "${this.modelConfig.name}". Please check your account plan and permissions on the provider's website.`;
+                            break;
+                        case 404:
+                            finalErrorText = `Model not found (404). The selected model "${this.modelConfig.name}" is not available with your API key. It may be deprecated or require special access. Please try another model.`;
+                            break;
+                        case 429:
+                            if (this.provider === AIProvider.OPENROUTER) {
+                                finalErrorText = `OpenRouter returned a 429 error. This usually means the selected model is rate-limited or temporarily unavailable. This is common for free models. Please try again in a few minutes, choose a different model in Settings, or check your OpenRouter account for usage limits.`;
+                            } else {
+                                finalErrorText = "The model provider returned a rate limit error (429). This can happen with free models under heavy load or if usage limits are exceeded. Please try again in a few minutes, select a different model in Settings, or check your API key's usage on the provider's website.";
+                            }
+                            break;
+                        default:
+                            if (e.status >= 500) {
+                                finalErrorText = `The model provider encountered a server error (${e.status}). This is likely a temporary issue on their end. Please try again in a few minutes.`;
+                            } else {
+                                finalErrorText = `An unexpected API error occurred (Status ${e.status}): ${e.message}`;
+                            }
+                            break;
                     }
+                } 
+                // General checks for common error strings from any provider, including Gemini
+                else if (errorText.includes('429') || errorText.toLowerCase().includes('resource_exhausted')) {
+                    finalErrorText = "Rate limit reached. You may have exceeded your usage quota or sent requests too quickly. Please check your account on the provider's website and try again later.";
+                }
+                else if (errorText.toLowerCase().includes('api key not valid') || errorText.toLowerCase().includes('permissiondenied')) {
+                     finalErrorText = "Authentication or permission error. Your API key might be invalid or lacks the necessary permissions for this model. Please check your key in Settings and on the provider's website.";
+                } else if (errorText.includes('400') && errorText.toLowerCase().includes('bad request')) {
+                    finalErrorText = `Bad Request (400). The model could not process the request. This can be caused by an invalid model parameter, an unsupported file type, or a prompt that violates safety policies. Details: ${errorText}`;
                 }
         
                 yield { type: 'error', error: finalErrorText };
