@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Part, Content } from "@google/genai";
 import OpenAI from 'openai';
 import { generateText, streamText } from 'ai';
@@ -229,9 +230,10 @@ export class AgenticApiService {
         originalQueryForRestart?: OriginalQueryInfo | null;
         command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search';
         cacheKey?: string;
+        customSystemPrompt?: string;
     }): AsyncGenerator<StreamEvent> {
         try {
-            const { isInitialQuery, query, fullChatHistory, modelConfigParams, signal, systemPromptOverride, originalQueryForRestart, command, cacheKey } = params;
+            const { isInitialQuery, query, fullChatHistory, modelConfigParams, signal, systemPromptOverride, originalQueryForRestart, command, cacheKey, customSystemPrompt } = params;
 
             let mainExecutionPrompt: string;
             let promptPartsForApi: Part[] = [];
@@ -239,7 +241,7 @@ export class AgenticApiService {
             let finalReportText = '';
             let finalGroundingChunks: GroundingChunk[] = [];
             let effectiveReportTypeForPrompt: ReportType | undefined = undefined;
-            const systemPrompt = systemPromptOverride || getSystemPromptForSelectedModel(this.modelConfig);
+            const systemPrompt = systemPromptOverride || getSystemPromptForSelectedModel(this.modelConfig, customSystemPrompt);
 
             if (isInitialQuery) {
                 const initialQuery = query as OriginalQueryInfo;

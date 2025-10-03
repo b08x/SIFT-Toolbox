@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { AgenticApiService } from '../services/agenticApiService.ts';
 import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter } from '../types';
 import { SliderInput } from './SliderInput'; 
 import { AVAILABLE_PROVIDERS_MODELS } from '../models.config';
+import { SIFT_CHAT_SYSTEM_PROMPT, SIFT_BIAS_FOCUS_PROMPT, SIFT_MISINFORMATION_FOCUS_PROMPT } from '../prompts';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -20,17 +22,28 @@ interface SettingsModalProps {
     onSelectModelId: (modelId: string) => void;
     modelConfigParams: ConfigurableParams;
     onModelConfigParamChange: React.Dispatch<React.SetStateAction<ConfigurableParams>>;
+    customSystemPrompt: string;
+    setCustomSystemPrompt: (prompt: string) => void;
 }
 
 const uniqueProviders = Array.from(new Set(AVAILABLE_PROVIDERS_MODELS.map(m => m.provider)));
 
+const promptPresets = [
+    { name: 'Default SIFT', prompt: SIFT_CHAT_SYSTEM_PROMPT },
+    { name: 'Bias Analysis Focus', prompt: SIFT_BIAS_FOCUS_PROMPT },
+    { name: 'Misinformation Focus', prompt: SIFT_MISINFORMATION_FOCUS_PROMPT },
+];
+
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen, onClose, userApiKeys, setUserApiKeys, apiKeyValidation, setApiKeyValidation,
     selectedProviderKey, setSelectedProviderKey, enableGeminiPreprocessing, setEnableGeminiPreprocessing,
-    availableModels, selectedModelId, onSelectModelId, modelConfigParams, onModelConfigParamChange
+    availableModels, selectedModelId, onSelectModelId, modelConfigParams, onModelConfigParamChange,
+    customSystemPrompt, setCustomSystemPrompt
 }) => {
     const [isValidationLoading, setIsValidationLoading] = useState<Partial<Record<AIProvider, boolean>>>({});
     const [localKeys, setLocalKeys] = useState<{ [key in AIProvider]?: string }>(userApiKeys);
+    const [selectedPreset, setSelectedPreset] = useState<string>('custom');
 
     useEffect(() => {
         setLocalKeys(userApiKeys);
@@ -42,6 +55,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setEnableGeminiPreprocessing(true);
       }
     }, [selectedModelId, availableModels, setEnableGeminiPreprocessing]);
+    
+    useEffect(() => {
+      const matchingPreset = promptPresets.find(p => p.prompt === customSystemPrompt);
+      if (matchingPreset) {
+        setSelectedPreset(matchingPreset.name);
+      } else if (customSystemPrompt === '') {
+        // If the prompt is cleared, it's effectively using the default.
+        setSelectedPreset('Default SIFT');
+      } else {
+        setSelectedPreset('custom');
+      }
+    }, [customSystemPrompt]);
 
 
     const handleProviderChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -88,6 +113,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const handleModelConfigChange = (key: string, value: number | string) => {
         onModelConfigParamChange(prev => ({ ...prev, [key]: value }));
+    };
+
+    const handlePresetChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const presetName = event.target.value;
+        setSelectedPreset(presetName);
+        if (presetName === 'custom') return;
+
+        const preset = promptPresets.find(p => p.name === presetName);
+        if (preset) {
+            // Special case: if default is selected, we clear the custom prompt to use the app's internal default logic
+            if (preset.name === 'Default SIFT') {
+                setCustomSystemPrompt('');
+            } else {
+                setCustomSystemPrompt(preset.prompt);
+            }
+        }
     };
 
     const renderApiKeyInput = (provider: AIProvider, label: string, placeholder: string, instructions?: React.ReactNode) => (
@@ -207,6 +248,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    </section>
+                    
+                    {/* Section 4: Prompt Configuration */}
+                    <section>
+                        <h2 className="text-xl font-semibold text-[#e2a32d] mb-4 border-b border-[#5c6f7e]/50 pb-2">Prompt & Analysis Configuration</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="prompt-preset-select" className="block text-sm font-medium text-gray-200 mb-1">Load Preset Prompt</label>
+                                <select
+                                    id="prompt-preset-select"
+                                    onChange={handlePresetChange}
+                                    value={selectedPreset}
+                                    className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm"
+                                >
+                                    <option value="custom">Custom</option>
+                                    {promptPresets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                                </select>
+                                <p className="text-xs text-[#95aac0] mt-1">Select a preset to guide the AI's analysis style. This will replace the content of the text area below.</p>
+                            </div>
+                            <div>
+                                <label htmlFor="custom-system-prompt" className="block text-sm font-medium text-gray-200 mb-1">System Prompt</label>
+                                <textarea
+                                    id="custom-system-prompt"
+                                    rows={8}
+                                    value={customSystemPrompt}
+                                    onChange={(e) => setCustomSystemPrompt(e.target.value)}
+                                    placeholder={SIFT_CHAT_SYSTEM_PROMPT}
+                                    className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm text-sm"
+                                />
+                                <p className="text-xs text-[#95aac0] mt-1">Leave this empty to use the default SIFT prompt. This provides high-level instructions to the model for the entire session.</p>
+                            </div>
                         </div>
                     </section>
                 </main>

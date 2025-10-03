@@ -1,22 +1,14 @@
-
-
-
-
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ChatInterface } from './components/ChatInterface';
-import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorAlert } from './components/ErrorAlert';
-import { UserQueryPanel } from './components/UserQueryPanel';
 import { RightSidebar } from './components/RightSidebar';
-import { LandingPage } from './components/LandingPage';
-import { ConfigurationPage } from './components/ConfigurationPage';
 import { SettingsModal } from './components/SettingsModal';
 import { AgenticApiService } from './services/agenticApiService.ts';
 import { SourceAssessmentModal } from './components/SourceAssessmentModal';
+import { LeftSidebar } from './components/LeftSidebar';
+import { AiReasoningPanel } from './components/UserQueryPanel';
 import * as SessionManager from './utils/sessionManager.ts';
 
 
@@ -29,11 +21,9 @@ import {
   ConfigurableParams,
   CurrentSiftQueryDetails,
   ApiKeyValidationStates,
-  AppPhase,
   UploadedFile,
   StreamEvent,
   SourceAssessment,
-  GroundingChunk,
   SavedSessionState
 } from './types';
 import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts';
@@ -53,15 +43,19 @@ const getNumericRating = (ratingStr: string): number => {
 
 
 const AppInternal = (): React.ReactElement => {
-  const [appPhase, setAppPhase] = useState<AppPhase>(AppPhase.LANDING);
   const [savedSessionExists, setSavedSessionExists] = useState<boolean>(false);
   
+  // Layout State
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [sidebarView, setSidebarView] = useState<'config' | 'about'>('config');
+
   // Configuration State
   const [userApiKeys, setUserApiKeys] = useState<{ [key in AIProvider]?: string }>({});
   const [apiKeyValidation, setApiKeyValidation] = useState<ApiKeyValidationStates>({});
   const [selectedProviderKey, setSelectedProviderKey] = useState<AIProvider>(AIProvider.GOOGLE_GEMINI);
   const [selectedModelId, setSelectedModelId] = useState<string>(AVAILABLE_PROVIDERS_MODELS.find(m => m.provider === AIProvider.GOOGLE_GEMINI)?.id || AVAILABLE_PROVIDERS_MODELS[0].id);
   const [modelConfigParams, setModelConfigParams] = useState<ConfigurableParams>({});
+  const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('');
   const [enableGeminiPreprocessing, setEnableGeminiPreprocessing] = useState<boolean>(false);
   const [sessionTopic, setSessionTopic] = useState<string>('');
   const [sessionContext, setSessionContext] = useState<string>('');
@@ -100,7 +94,7 @@ const AppInternal = (): React.ReactElement => {
   }, []);
 
   const performSave = useCallback(() => {
-    if (appPhase !== AppPhase.CHAT_ACTIVE || isLoading || chatMessages.length === 0) return;
+    if (isLoading || chatMessages.length === 0) return;
 
     setSaveStatus('saving');
     // Short delay for UI to update to "Saving..."
@@ -117,6 +111,7 @@ const AppInternal = (): React.ReactElement => {
                 enableGeminiPreprocessing,
                 userApiKeys,
                 apiKeyValidation,
+                customSystemPrompt,
             };
             SessionManager.saveSession(sessionState);
             setSavedSessionExists(true);
@@ -128,13 +123,13 @@ const AppInternal = (): React.ReactElement => {
         }
     }, 200);
   }, [
-      appPhase, isLoading, chatMessages, currentSiftQueryDetails, originalQueryForRestart, sourceAssessments,
-      selectedProviderKey, selectedModelId, modelConfigParams, enableGeminiPreprocessing, userApiKeys, apiKeyValidation
+      isLoading, chatMessages, currentSiftQueryDetails, originalQueryForRestart, sourceAssessments,
+      selectedProviderKey, selectedModelId, modelConfigParams, enableGeminiPreprocessing, userApiKeys, apiKeyValidation, customSystemPrompt
   ]);
 
   // Debounced auto-save effect
   useEffect(() => {
-    if (appPhase === AppPhase.CHAT_ACTIVE && !isLoading && chatMessages.length > 0) {
+    if (!isLoading && chatMessages.length > 0) {
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
         }
@@ -147,7 +142,7 @@ const AppInternal = (): React.ReactElement => {
             clearTimeout(saveTimeoutRef.current);
         }
     };
-  }, [performSave, appPhase, isLoading, chatMessages.length]);
+  }, [performSave, isLoading, chatMessages.length]);
 
   const handleManualSave = () => {
       if (saveTimeoutRef.current) {
@@ -169,6 +164,7 @@ const AppInternal = (): React.ReactElement => {
       setEnableGeminiPreprocessing(session.enableGeminiPreprocessing);
       setUserApiKeys(session.userApiKeys);
       setApiKeyValidation(session.apiKeyValidation);
+      setCustomSystemPrompt(session.customSystemPrompt || '');
       
       // Restore initial config screen state from the loaded details if needed for consistency
       if (session.currentSiftQueryDetails) {
@@ -178,7 +174,7 @@ const AppInternal = (): React.ReactElement => {
           setSessionUrls(session.currentSiftQueryDetails.sessionUrls.join('\n'));
       }
       
-      setAppPhase(AppPhase.CHAT_ACTIVE);
+      setIsSidebarOpen(false); // Close sidebar to focus on chat
       setLastSaveTime(new Date()); // Indicate that what is loaded is "saved" as of now.
       setSaveStatus('saved');
     } else {
@@ -190,37 +186,6 @@ const AppInternal = (): React.ReactElement => {
   const getSelectedModelConfig = useCallback((): AIModelConfig | undefined => {
     return AVAILABLE_PROVIDERS_MODELS.find(m => m.id === selectedModelId && m.provider === selectedProviderKey);
   }, [selectedModelId, selectedProviderKey]);
-
-  const handleGoHome = () => {
-    // Full reset, including API keys and saved session
-    setChatMessages([]);
-    setIsLoading(false);
-    setError(null);
-    setLlmStatusMessage(null);
-    setOriginalQueryForRestart(null);
-    setCurrentSiftQueryDetails(null);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    setSessionTopic('');
-    setSessionContext('');
-    setSessionFiles([]);
-    setSessionUrls('');
-    setSourceAssessments([]);
-    setSelectedSourceForModal(null);
-    setAiReasoningStream('');
-    setIsProcessingReasoning(false);
-    
-    // Clear keys and validation
-    setUserApiKeys({}); 
-    setApiKeyValidation({}); 
-    SessionManager.clearSession();
-    setSavedSessionExists(false);
-    setAppPhase(AppPhase.LANDING); 
-    setSaveStatus('idle');
-    setLastSaveTime(null);
-  };
   
   const handleNewSession = () => {
     // Resets session but preserves API keys, clears saved session
@@ -242,16 +207,16 @@ const AppInternal = (): React.ReactElement => {
     setSelectedSourceForModal(null);
     setAiReasoningStream('');
     setIsProcessingReasoning(false);
+    setCustomSystemPrompt('');
 
     SessionManager.clearSession();
     setSavedSessionExists(false);
-    setAppPhase(AppPhase.CONFIGURATION_SETUP);
     setSaveStatus('idle');
     setLastSaveTime(null);
-  };
 
-  const handleGetStarted = () => {
-    setAppPhase(AppPhase.CONFIGURATION_SETUP);
+    // Reset sidebar to default config view
+    setIsSidebarOpen(true);
+    setSidebarView('config');
   };
 
   useEffect(() => {
@@ -425,7 +390,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
     
     setIsLoading(true); 
-    setAppPhase(AppPhase.CHAT_ACTIVE); 
+    setIsSidebarOpen(false); // Auto-close sidebar on session start
 
     const userMessage: ChatMessage = {
       id: uuidv4(),
@@ -465,6 +430,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             fullChatHistory: [userMessage],
             modelConfigParams: modelConfigParams,
             signal: abortControllerRef.current.signal,
+            customSystemPrompt,
         });
         await processStreamEvents(stream, aiMessageId);
     } catch (e) {
@@ -480,7 +446,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
 
 
   const handleSendChatMessage = async (messageText: string, command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search') => {
-    if (appPhase !== AppPhase.CHAT_ACTIVE || isLoading) return;
+    if (isLoading) return;
     setError(null);
     setIsLoading(true);
 
@@ -508,6 +474,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             signal: abortControllerRef.current.signal,
             originalQueryForRestart,
             command,
+            customSystemPrompt,
         });
         await processStreamEvents(stream, aiMessageId);
     } catch (e) {
@@ -553,6 +520,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                 fullChatHistory: [firstUserMessage],
                 modelConfigParams: modelConfigParams,
                 signal: abortControllerRef.current.signal,
+                customSystemPrompt,
             });
             processStreamEvents(stream, aiMessageId).finally(() => {
                 setIsLoading(false);
@@ -660,66 +628,56 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
   };
 
-  if (appPhase === AppPhase.LANDING) {
-    return <LandingPage onGetStarted={handleGetStarted} onRestoreSession={handleRestoreSession} showRestoreButton={savedSessionExists} />;
-  }
-
-  if (appPhase === AppPhase.CONFIGURATION_SETUP) {
-    return (
-      <>
-        <ConfigurationPage
-          apiKeyValidation={apiKeyValidation}
-          onOpenSettings={() => setIsSettingsModalOpen(true)}
-          sessionTopic={sessionTopic}
-          setSessionTopic={setSessionTopic}
-          sessionContext={sessionContext}
-          setSessionContext={setSessionContext}
-          sessionFiles={sessionFiles}
-          setSessionFiles={setSessionFiles}
-          sessionUrls={sessionUrls}
-          setSessionUrls={setSessionUrls}
-          onStartSession={handleStartSession}
-          onGoHome={handleGoHome}
-          selectedProviderKey={selectedProviderKey}
-          enableGeminiPreprocessing={enableGeminiPreprocessing}
-        />
-        {isSettingsModalOpen && (
-          <SettingsModal
-            isOpen={isSettingsModalOpen}
-            onClose={() => setIsSettingsModalOpen(false)}
-            userApiKeys={userApiKeys}
-            setUserApiKeys={setUserApiKeys}
-            apiKeyValidation={apiKeyValidation}
-            setApiKeyValidation={setApiKeyValidation}
-            selectedProviderKey={selectedProviderKey}
-            setSelectedProviderKey={setSelectedProviderKey}
-            enableGeminiPreprocessing={enableGeminiPreprocessing}
-            setEnableGeminiPreprocessing={setEnableGeminiPreprocessing}
-            availableModels={AVAILABLE_PROVIDERS_MODELS}
-            selectedModelId={selectedModelId}
-            onSelectModelId={setSelectedModelId}
-            modelConfigParams={modelConfigParams}
-            onModelConfigParamChange={setModelConfigParams}
-          />
-        )}
-      </>
-    );
-  }
-
   const selectedModelConfig = getSelectedModelConfig();
 
   return (
-    <div className="flex flex-col md:flex-row h-screen max-h-screen bg-[#212934] text-gray-200">
+    <div className="flex h-screen max-h-screen bg-[#212934] text-gray-200">
+      <LeftSidebar
+        isOpen={isSidebarOpen}
+        onToggleClose={() => setIsSidebarOpen(false)}
+        activeView={sidebarView}
+        onSwitchView={setSidebarView}
+        apiKeyValidation={apiKeyValidation}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        sessionTopic={sessionTopic}
+        setSessionTopic={setSessionTopic}
+        sessionContext={sessionContext}
+        setSessionContext={setSessionContext}
+        sessionFiles={sessionFiles}
+        setSessionFiles={setSessionFiles}
+        sessionUrls={sessionUrls}
+        setSessionUrls={setSessionUrls}
+        onStartSession={handleStartSession}
+        selectedProviderKey={selectedProviderKey}
+        enableGeminiPreprocessing={enableGeminiPreprocessing}
+        onRestoreSession={handleRestoreSession}
+        showRestoreButton={savedSessionExists && chatMessages.length === 0}
+      />
       <main className={`flex-grow flex flex-col p-3 md:p-6 overflow-hidden h-full`}>
           <header className="mb-4 flex-shrink-0 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#e2a32d] flex items-center">
-                  <span className="mr-2 text-3xl md:text-4xl">🔍</span>
-                  SIFT Toolbox Session
-              </h1>
-              <p className="text-sm text-[#95aac0]">
-                  Model: <span className="font-semibold text-[#c36e26]">{getSelectedModelConfig()?.name || 'N/A'}</span>
-              </p>
+            <div className="flex items-center space-x-3">
+              {!isSidebarOpen && (
+                <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="p-2 text-sm bg-gray-600 hover:bg-gray-500 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-gray-500 transition-colors"
+                  title="Open Sidebar"
+                >
+                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+                  </svg>
+                </button>
+              )}
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-[#e2a32d] flex items-center">
+                    <span className="mr-2 text-3xl md:text-4xl">🔍</span>
+                    SIFT Toolbox
+                </h1>
+                {chatMessages.length > 0 && (
+                  <p className="text-sm text-[#95aac0]">
+                      Model: <span className="font-semibold text-[#c36e26]">{getSelectedModelConfig()?.name || 'N/A'}</span>
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <button
@@ -745,36 +703,50 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
           {error && <ErrorAlert message={error} />}
 
           <div className="flex-grow flex min-h-0"> 
-            {currentSiftQueryDetails && (
-              <UserQueryPanel
-                sessionTopic={currentSiftQueryDetails.sessionTopic}
-                sessionContext={currentSiftQueryDetails.sessionContext}
-                sessionFiles={currentSiftQueryDetails.sessionFiles}
-                sessionUrls={currentSiftQueryDetails.sessionUrls}
-                aiReasoningStream={aiReasoningStream}
-                isProcessingReasoning={isProcessingReasoning}
-              />
-            )}
-            <div className="flex-grow pl-0 md:pl-4 min-w-0"> 
-              <ChatInterface
-                ref={chatContainerRef}
-                messages={chatMessages}
-                sourceAssessments={sourceAssessments}
-                onSendMessage={handleSendChatMessage}
-                isLoading={isLoading}
-                onStopGeneration={handleStopGeneration}
-                onRestartGeneration={handleRestartGeneration}
-                canRestart={originalQueryForRestart !== null && !isLoading}
-                supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
-              />
-            </div>
+            {chatMessages.length === 0 ? (
+                <div className="flex-grow flex flex-col items-center justify-center text-center p-4">
+                  <span className="text-6xl mb-4">👋</span>
+                  <h2 className="text-2xl font-bold text-gray-200">Welcome to the SIFT Toolbox</h2>
+                  <p className="text-[#95aac0] mt-2 max-w-md">
+                    Use the sidebar on the left to configure your session topic, provide context, and upload files to begin your investigation.
+                  </p>
+                  <button 
+                    onClick={() => { setIsSidebarOpen(true); setSidebarView('config'); }}
+                    className="mt-6 px-5 py-2.5 bg-gradient-to-r from-[#e2a32d] to-[#c36e26] hover:from-[#f5b132] hover:to-[#d67e2a] text-white font-bold text-base rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#c36e26]/50"
+                  >
+                    Open Configuration
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {(aiReasoningStream || isProcessingReasoning) && (
+                    <AiReasoningPanel
+                      aiReasoningStream={aiReasoningStream}
+                      isProcessingReasoning={isProcessingReasoning}
+                    />
+                  )}
+                  <div className="flex-grow pl-0 md:pl-4 min-w-0"> 
+                    <ChatInterface
+                      ref={chatContainerRef}
+                      messages={chatMessages}
+                      sourceAssessments={sourceAssessments}
+                      onSendMessage={handleSendChatMessage}
+                      isLoading={isLoading}
+                      onStopGeneration={handleStopGeneration}
+                      onRestartGeneration={handleRestartGeneration}
+                      canRestart={originalQueryForRestart !== null && !isLoading}
+                      supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
+                    />
+                  </div>
+                </>
+              )}
           </div>
 
           <footer className="mt-auto pt-3 text-center text-xs text-[#95aac0]/70 flex-shrink-0">
             <p>Reports compiled and contextualized using Language Models. | SIFT Methodology.</p>
           </footer>
       </main>
-      {appPhase === AppPhase.CHAT_ACTIVE && (
+      {chatMessages.length > 0 && (
         <RightSidebar
           llmStatusMessage={llmStatusMessage}
           onGenerateContextReport={() => handleSendChatMessage("ACTION: Generate Context Report", 'generate_context_report')}
@@ -806,6 +778,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             onSelectModelId={setSelectedModelId}
             modelConfigParams={modelConfigParams}
             onModelConfigParamChange={setModelConfigParams}
+            customSystemPrompt={customSystemPrompt}
+            setCustomSystemPrompt={setCustomSystemPrompt}
         />
       )}
        {selectedSourceForModal && (

@@ -1,5 +1,3 @@
-
-
 import { Part } from "@google/genai";
 
 export enum ReportType {
@@ -126,12 +124,6 @@ export interface ParsedReportSection {
 }
 
 // For API Key Management
-export enum AppPhase {
-  LANDING = 'LANDING',
-  CONFIGURATION_SETUP = 'CONFIGURATION_SETUP',
-  CHAT_ACTIVE = 'CHAT_ACTIVE',
-}
-
 export type ApiKeyValidationStatus = 'valid' | 'invalid' | 'pending' | 'unchecked';
 export type ApiKeyValidationStates = {
   [key in AIProvider]?: ApiKeyValidationStatus;
@@ -169,6 +161,7 @@ export interface SavedSessionState {
   enableGeminiPreprocessing: boolean;
   userApiKeys: { [key in AIProvider]?: string };
   apiKeyValidation: ApiKeyValidationStates;
+  customSystemPrompt: string;
 }
 
 

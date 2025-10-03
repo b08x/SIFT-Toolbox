@@ -1,3 +1,4 @@
+
 import OpenAI from 'openai';
 import { Content } from '@google/genai';
 import { AIProvider, AIModelConfig, ChatMessage, SourceAssessment, ParsedReportSection, GroundingChunk } from '../types';
@@ -6,7 +7,11 @@ import { AVAILABLE_PROVIDERS_MODELS } from '../models.config';
 
 const MAX_RECENT_TURNS = 5; // Number of recent user/AI message PAIRS to keep for context
 
-export const getSystemPromptForSelectedModel = (modelConfig: AIModelConfig | undefined): string => {
+export const getSystemPromptForSelectedModel = (modelConfig: AIModelConfig | undefined, customPrompt?: string): string => {
+    if (customPrompt && customPrompt.trim()) {
+        return customPrompt;
+    }
+    
     let basePrompt: string = SIFT_CHAT_SYSTEM_PROMPT; 
 
     if (modelConfig) {

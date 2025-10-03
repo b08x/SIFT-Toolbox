@@ -1,5 +1,6 @@
 
 
+
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,7 +15,8 @@ interface ChatMessageItemProps {
   sourceAssessments: SourceAssessment[];
 }
 
-const FilePreview = ({ file }: { file: UploadedFile }) => {
+// FIX: Changed to React.FC to correctly handle props like `key` when used in a list.
+const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     const fileType = file.type.split('/')[0];
     const isImage = fileType === 'image';
     const isVideo = fileType === 'video';
@@ -65,7 +67,8 @@ const injectSourceIndices = (markdownText: string, assessments: SourceAssessment
 };
 
 
-export const ChatMessageItem = ({ message, sourceAssessments }: ChatMessageItemProps): React.ReactElement => {
+// FIX: Changed component to be of type React.FC to ensure TypeScript correctly handles it as a React component, resolving issues with the `key` prop.
+export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments }) => {
   const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData } = message;
   const isUser = sender === 'user';
 
@@ -119,7 +122,8 @@ ${groundingSourcesText}
   };
 
 
-  const renderContent = (): JSX.Element | null => {
+  // FIX: Changed return type from JSX.Element to React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
+  const renderContent = (): React.ReactElement | null => {
     if (isInitialSIFTReport && originalQueryReportType === ReportType.FULL_CHECK && !isLoading && !isError) {
       const parsedSections = parseSiftFullCheckReport(textWithIndices);
       if (parsedSections.length > 0) {
