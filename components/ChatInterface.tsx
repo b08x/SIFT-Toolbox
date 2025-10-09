@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useRef, useEffect, forwardRef } from 'react';
 import { ChatMessage, SourceAssessment } from '../types';
 import { ChatMessageItem } from './ChatMessageItem';
@@ -13,11 +14,12 @@ interface ChatInterfaceProps {
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void; // New prop for restarting
+  onSourceIndexClick: (index: number) => void;
   canRestart?: boolean; // New prop to enable/disable restart button
   supportsWebSearch?: boolean;
 }
 
-export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart, supportsWebSearch }, ref) => {
+export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart, supportsWebSearch, onSourceIndexClick }, ref) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ m
       {/* Chat Messages Area */}
       <div ref={ref} className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 scrollbar-thin scrollbar-thumb-[#5c6f7e] scrollbar-track-[#333e48]">
         {messages.map((msg) => (
-          <ChatMessageItem key={msg.id} message={msg} sourceAssessments={sourceAssessments} />
+          <ChatMessageItem key={msg.id} message={msg} sourceAssessments={sourceAssessments} onSourceIndexClick={onSourceIndexClick} />
         ))}
         <div ref={messagesEndRef} /> {/* For auto-scrolling */}
       </div>

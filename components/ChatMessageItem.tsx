@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -13,6 +14,7 @@ import { TabbedReport } from './TabbedReport';
 interface ChatMessageItemProps {
   message: ChatMessage;
   sourceAssessments: SourceAssessment[];
+  onSourceIndexClick: (index: number) => void;
 }
 
 // FIX: Changed to React.FC to correctly handle props like `key` when used in a list.
@@ -40,41 +42,19 @@ const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     );
 };
 
-const injectSourceIndices = (markdownText: string, assessments: SourceAssessment[]): string => {
-  if (!assessments || assessments.length === 0) {
-    return markdownText;
-  }
-
-  const urlToIndexMap = new Map<string, number>();
-  assessments.forEach(a => {
-    if (a.url) urlToIndexMap.set(a.url, a.index);
-  });
-
-  if (urlToIndexMap.size === 0) return markdownText;
-
-  // This regex finds Markdown links `[text](url)` but avoids image links `![text](url)`
-  const linkRegex = /(?<!\!)\[([^\]]+)\]\(([^)]+?)\)/g;
-
-  return markdownText.replace(linkRegex, (match, _linkText, url) => {
-    const trimmedUrl = url.trim();
-    if (urlToIndexMap.has(trimmedUrl)) {
-      const index = urlToIndexMap.get(trimmedUrl);
-      // Append a superscripted index number after the link
-      return `${match}[${index}]`;
-    }
-    return match;
-  });
-};
-
-
 // FIX: Changed component to be of type React.FC to ensure TypeScript correctly handles it as a React component, resolving issues with the `key` prop.
-export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments }) => {
+export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments, onSourceIndexClick }) => {
   const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData } = message;
   const isUser = sender === 'user';
 
-  const textWithIndices = useMemo(() => {
-    return injectSourceIndices(text, sourceAssessments);
-  }, [text, sourceAssessments]);
+  const urlToIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!sourceAssessments || sourceAssessments.length === 0) return map;
+    sourceAssessments.forEach(a => {
+        if (a.url) map.set(a.url.trim(), a.index);
+    });
+    return map;
+  }, [sourceAssessments]);
 
 
   const handleCopyText = (contentToCopy: string) => {
@@ -125,7 +105,7 @@ ${groundingSourcesText}
   // FIX: Changed return type from JSX.Element to React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
   const renderContent = (): React.ReactElement | null => {
     if (isInitialSIFTReport && originalQueryReportType === ReportType.FULL_CHECK && !isLoading && !isError) {
-      const parsedSections = parseSiftFullCheckReport(textWithIndices);
+      const parsedSections = parseSiftFullCheckReport(text);
       if (parsedSections.length > 0) {
         return <TabbedReport sections={parsedSections} />;
       }
@@ -134,7 +114,35 @@ ${groundingSourcesText}
     if (text.trim() || isLoading) { 
       return (
         <div className="markdown-content prose-sm sm:prose-base max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{textWithIndices}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+                a: ({ node, ...props }) => {
+                    const url = props.href?.trim();
+                    const sourceIndex = url ? urlToIndexMap.get(url) : undefined;
+                    
+                    if (sourceIndex) {
+                        return (
+                            <React.Fragment>
+                                <a {...props} />
+                                <sup className="source-index">
+                                    <button
+                                        onClick={() => onSourceIndexClick(sourceIndex)}
+                                        title={`Go to source assessment #${sourceIndex}`}
+                                        className="source-index-button"
+                                    >
+                                        [{sourceIndex}]
+                                    </button>
+                                </sup>
+                            </React.Fragment>
+                        );
+                    }
+                    return <a {...props} />;
+                },
+            }}
+          >
+            {text}
+          </ReactMarkdown>
         </div>
       );
     }
@@ -248,7 +256,7 @@ ${groundingSourcesText}
             </p>
             {!isLoading && text.trim() && (
                  <button
-                    onClick={() => handleCopyText(textWithIndices)}
+                    onClick={() => handleCopyText(text)}
                     title="Copy message"
                     className={`p-1 rounded ${isUser ? 'text-orange-200 hover:bg-orange-500/50' : 'text-[#95aac0] hover:bg-[#5c6f7e]'}`}
                     aria-label="Copy message text"

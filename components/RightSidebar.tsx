@@ -1,5 +1,6 @@
 
 
+
 import React from 'react';
 import { SourceAssessment } from '../types';
 
@@ -15,6 +16,7 @@ interface RightSidebarProps {
   onSaveSession: () => void;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   lastSaveTime: Date | null;
+  sourceListContainerRef: React.RefObject<HTMLDivElement>;
 }
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -29,6 +31,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   onSaveSession,
   saveStatus,
   lastSaveTime,
+  sourceListContainerRef,
 }) => {
   const anyLoading = isLoading || isGeneratingReport;
 
@@ -113,10 +116,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       {sourceAssessments.length > 0 && (
         <div className="mb-4">
           <h3 className="text-sm font-medium text-[#e2a32d] mb-1">🧐 Source Reliability</h3>
-          <div className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-[#95aac0] scrollbar-track-[#333e48] bg-[#212934] p-2 rounded-md border border-[#5c6f7e]">
+          <div ref={sourceListContainerRef} className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-[#95aac0] scrollbar-track-[#333e48] bg-[#212934] p-2 rounded-md border border-[#5c6f7e]">
             <ul className="space-y-1">
               {sourceAssessments.map((assessment) => (
-                <li key={assessment.index}>
+                <li key={assessment.index} id={`source-item-${assessment.index}`}>
                   <button
                     onClick={() => onSelectSource(assessment)}
                     className="w-full text-left text-xs p-1.5 rounded hover:bg-[#5c6f7e]/60 transition-colors focus:outline-none focus:ring-1 focus:ring-[#e2a32d]"

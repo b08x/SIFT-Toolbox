@@ -87,6 +87,7 @@ const AppInternal = (): React.ReactElement => {
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const sourceListContainerRef = useRef<HTMLDivElement>(null);
 
   // Check for saved session on initial load
   useEffect(() => {
@@ -628,6 +629,20 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
   };
 
+  const handleSourceIndexClick = (index: number) => {
+    const container = sourceListContainerRef.current;
+    if (!container) return;
+
+    const element = container.querySelector(`#source-item-${index}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('highlight-source');
+        setTimeout(() => {
+            element.classList.remove('highlight-source');
+        }, 2000); // Highlight for 2 seconds
+    }
+  };
+
   const selectedModelConfig = getSelectedModelConfig();
 
   return (
@@ -734,6 +749,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                       isLoading={isLoading}
                       onStopGeneration={handleStopGeneration}
                       onRestartGeneration={handleRestartGeneration}
+                      onSourceIndexClick={handleSourceIndexClick}
                       canRestart={originalQueryForRestart !== null && !isLoading}
                       supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
                     />
@@ -759,6 +775,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
           onSaveSession={handleManualSave}
           saveStatus={saveStatus}
           lastSaveTime={lastSaveTime}
+          sourceListContainerRef={sourceListContainerRef}
         />
       )}
       {isSettingsModalOpen && (
