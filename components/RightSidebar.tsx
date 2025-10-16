@@ -1,8 +1,5 @@
-
-
-
 import React from 'react';
-import { SourceAssessment } from '../types';
+import { SourceAssessment, LinkValidationStatus } from '../types';
 
 interface RightSidebarProps {
   llmStatusMessage: string | null;
@@ -18,6 +15,38 @@ interface RightSidebarProps {
   lastSaveTime: Date | null;
   sourceListContainerRef: React.RefObject<HTMLDivElement>;
 }
+
+const LinkStatusIcon: React.FC<{ status: LinkValidationStatus | undefined }> = ({ status }) => {
+    switch (status) {
+        case 'checking':
+            return (
+                <svg className="animate-spin h-3.5 w-3.5 mr-2 text-[#95aac0] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" title="Checking link...">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            );
+        case 'valid':
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} title="Link appears to be valid.">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            );
+        case 'invalid':
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} title="Link appears to be broken or inaccessible.">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            );
+        case 'error_checking':
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} title="Could not verify link status (may be due to CORS restrictions).">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            );
+        default: // unchecked or undefined
+            return <div className="h-3.5 w-3.5 mr-2 flex-shrink-0" />; // Placeholder for alignment
+    }
+};
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
   llmStatusMessage,
@@ -125,10 +154,11 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                     className="w-full text-left text-xs p-1.5 rounded hover:bg-[#5c6f7e]/60 transition-colors focus:outline-none focus:ring-1 focus:ring-[#e2a32d]"
                     title={`Click to view details for: ${assessment.name}`}
                   >
-                    <span className="font-semibold text-gray-200 truncate flex items-center">
+                    <div className="font-semibold text-gray-200 truncate flex items-center">
+                       <LinkStatusIcon status={assessment.linkValidationStatus} />
                        <span className="inline-block text-center w-6 mr-2 py-0.5 bg-[#212934] border border-[#5c6f7e] rounded text-xs font-bold text-[#e2a32d] flex-shrink-0">{assessment.index}</span>
-                       <span className="truncate">{assessment.name}</span>
-                    </span>
+                       <span className="truncate flex-1">{assessment.name}</span>
+                    </div>
                     <span className="text-[#95aac0]/80 truncate block pl-8">{assessment.assessment}</span>
                   </button>
                 </li>

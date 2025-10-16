@@ -1,5 +1,5 @@
 import React from 'react';
-import { SourceAssessment } from '../types';
+import { SourceAssessment, LinkValidationStatus } from '../types';
 
 interface SourceAssessmentModalProps {
   source: SourceAssessment;
@@ -22,6 +22,47 @@ const RatingDisplay = ({ rating }: { rating: string }) => {
     );
 };
 
+const LinkStatusIcon: React.FC<{ status: LinkValidationStatus | undefined }> = ({ status }) => {
+    switch (status) {
+        case 'checking':
+            return (
+                <svg className="animate-spin h-5 w-5 text-[#95aac0] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" title="Checking link...">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            );
+        case 'valid':
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} title="Link appears to be valid.">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            );
+        case 'invalid':
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} title="Link appears to be broken or inaccessible.">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            );
+        case 'error_checking':
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} title="Could not verify link status (may be due to CORS restrictions).">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            );
+        default: // unchecked or undefined
+            return <div className="h-5 w-5 flex-shrink-0" />;
+    }
+};
+
+const getStatusText = (status: LinkValidationStatus | undefined): string => {
+    switch (status) {
+        case 'checking': return "Checking link status...";
+        case 'valid': return "Link appears to be valid and accessible.";
+        case 'invalid': return "Link appears to be broken or inaccessible (e.g., 404 error).";
+        case 'error_checking': return "Could not automatically verify this link's status. This can be due to security restrictions (CORS) and doesn't necessarily mean the link is broken. Please verify manually.";
+        default: return "Link status has not been checked yet.";
+    }
+};
 
 export const SourceAssessmentModal: React.FC<SourceAssessmentModalProps> = ({ source, onClose }) => {
     return (
@@ -57,14 +98,18 @@ export const SourceAssessmentModal: React.FC<SourceAssessmentModalProps> = ({ so
 
                          <div>
                             <h3 className="text-sm font-medium text-gray-400">URL</h3>
-                            <a 
-                                href={source.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-sm text-[#e2a32d] hover:underline break-all"
-                            >
-                                {source.url}
-                            </a>
+                            <div className="flex items-center space-x-2">
+                                <LinkStatusIcon status={source.linkValidationStatus} />
+                                <a 
+                                    href={source.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-[#e2a32d] hover:underline break-all"
+                                >
+                                    {source.url}
+                                </a>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1 pl-7">{getStatusText(source.linkValidationStatus)}</p>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

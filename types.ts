@@ -63,6 +63,8 @@ export interface OriginalQueryInfo {
   reportType: ReportType;
 }
 
+export type LinkValidationStatus = 'unchecked' | 'valid' | 'invalid' | 'error_checking' | 'checking';
+
 export interface SourceAssessment {
   index: number;
   name: string;
@@ -70,6 +72,7 @@ export interface SourceAssessment {
   assessment: string;
   notes: string;
   rating: string;
+  linkValidationStatus?: LinkValidationStatus;
 }
 
 // New types for model selection and parameters

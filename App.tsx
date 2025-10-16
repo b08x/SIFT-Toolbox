@@ -24,12 +24,13 @@ import {
   UploadedFile,
   StreamEvent,
   SourceAssessment,
-  SavedSessionState
+  SavedSessionState,
+  LinkValidationStatus
 } from './types';
 import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts';
 import { AVAILABLE_PROVIDERS_MODELS } from './models.config';
 import { downloadMarkdown, downloadPdfWithBrowserPrint } from './utils/download';
-import { parseSourceAssessmentsFromMarkdown, correctRedirectLinksInMarkdown } from './utils/apiHelpers.ts';
+import { parseSourceAssessmentsFromMarkdown, correctRedirectLinksInMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
 
 // Helper function to parse rating string into a comparable number
 const getNumericRating = (ratingStr: string): number => {
@@ -92,6 +93,34 @@ const AppInternal = (): React.ReactElement => {
   // Check for saved session on initial load
   useEffect(() => {
     setSavedSessionExists(SessionManager.hasSavedSession());
+  }, []);
+
+  const checkSourceLinks = useCallback(async (assessmentsToCheck: SourceAssessment[]) => {
+    if (assessmentsToCheck.length === 0) return;
+
+    // Immediately mark the ones we are about to check as 'checking' in the UI
+    setSourceAssessments(prev => prev.map(assessment => 
+        assessmentsToCheck.some(a => a.url === assessment.url)
+            ? { ...assessment, linkValidationStatus: 'checking' }
+            : assessment
+    ));
+
+    const checkedAssessmentsPromises = assessmentsToCheck.map(async (assessment) => {
+        const status = await checkLinkStatus(assessment.url);
+        return { ...assessment, linkValidationStatus: status };
+    });
+
+    const results = await Promise.all(checkedAssessmentsPromises);
+
+    // Merge results back into the main state
+    setSourceAssessments(prev => {
+        const resultsMap = new Map(results.map(r => [r.url, r.linkValidationStatus]));
+        return prev.map(assessment => 
+            resultsMap.has(assessment.url)
+                ? { ...assessment, linkValidationStatus: resultsMap.get(assessment.url) }
+                : assessment
+        );
+    });
   }, []);
 
   const performSave = useCallback(() => {
@@ -158,7 +187,14 @@ const AppInternal = (): React.ReactElement => {
       setChatMessages(session.chatMessages);
       setCurrentSiftQueryDetails(session.currentSiftQueryDetails);
       setOriginalQueryForRestart(session.originalQueryForRestart);
-      setSourceAssessments(session.sourceAssessments);
+      
+      // Mark all restored assessments as unchecked so they get validated on load
+      const assessmentsToLoad = session.sourceAssessments.map(a => ({...a, linkValidationStatus: 'unchecked' as const}));
+      setSourceAssessments(assessmentsToLoad);
+      if (assessmentsToLoad.length > 0) {
+          checkSourceLinks(assessmentsToLoad);
+      }
+
       setSelectedProviderKey(session.selectedProviderKey);
       setSelectedModelId(session.selectedModelId);
       setModelConfigParams(session.modelConfigParams);
@@ -319,27 +355,35 @@ const AppInternal = (): React.ReactElement => {
               setSourceAssessments(prevAssessments => {
                   const updatedAssessmentsMap = new Map<string, Omit<SourceAssessment, 'index'>>();
                   
-                  // Seed map with existing assessments to maintain order and data.
                   prevAssessments.forEach(a => updatedAssessmentsMap.set(a.url, a));
-                  
-                  // Add/update with new assessments. `Map` handles uniqueness by key.
                   newAssessments.forEach(newA => {
                       const existing = updatedAssessmentsMap.get(newA.url);
                       updatedAssessmentsMap.set(newA.url, { ...existing, ...newA });
                   });
   
-                  // Convert map to array and sort by rating in descending order
                   const sortedAssessments = Array.from(updatedAssessmentsMap.values()).sort((a, b) => {
                     const ratingA = getNumericRating(a.rating);
                     const ratingB = getNumericRating(b.rating);
                     return ratingB - ratingA;
                   });
                   
-                  // Assign final, sequential indices after sorting.
-                  return sortedAssessments.map((assessment, index) => ({
-                      ...assessment,
-                      index: index + 1,
-                  }));
+                  const finalAssessments = sortedAssessments.map((assessment, index) => {
+                      const prevAssessment = prevAssessments.find(pa => pa.url === assessment.url);
+                      return {
+                          ...assessment,
+                          index: index + 1,
+                          linkValidationStatus: prevAssessment?.linkValidationStatus || 'unchecked',
+                      };
+                  });
+
+                  const assessmentsThatNeedChecking = finalAssessments.filter(
+                      fa => fa.linkValidationStatus === 'unchecked'
+                  );
+                  if (assessmentsThatNeedChecking.length > 0) {
+                      checkSourceLinks(assessmentsThatNeedChecking);
+                  }
+
+                  return finalAssessments;
               });
           }
           setChatMessages(prev => prev.map(m => m.id === aiMessageId ? {

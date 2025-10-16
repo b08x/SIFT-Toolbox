@@ -1,7 +1,6 @@
-
 import OpenAI from 'openai';
 import { Content } from '@google/genai';
-import { AIProvider, AIModelConfig, ChatMessage, SourceAssessment, ParsedReportSection, GroundingChunk } from '../types';
+import { AIProvider, AIModelConfig, ChatMessage, SourceAssessment, ParsedReportSection, GroundingChunk, LinkValidationStatus } from '../types';
 import { SIFT_CHAT_SYSTEM_PROMPT } from '../prompts';
 import { AVAILABLE_PROVIDERS_MODELS } from '../models.config';
 
@@ -291,4 +290,44 @@ export const correctRedirectLinksInMarkdown = (markdownText: string, groundingSo
         // If no confident match is found, return the original link to avoid breaking it
         return match; 
     });
+};
+
+export const checkLinkStatus = async (url: string): Promise<LinkValidationStatus> => {
+  try {
+    // This is a basic check. It won't catch all invalid formats but is a good first pass.
+    new URL(url);
+  } catch (_) {
+    return 'invalid';
+  }
+
+  if (!url.startsWith('http')) {
+    return 'invalid';
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout
+
+    // We use 'HEAD' to be efficient and not download the whole page.
+    // Some servers don't support 'HEAD', but it's a good first try.
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      mode: 'cors',
+    });
+
+    clearTimeout(timeoutId);
+
+    // 2xx are success, 3xx are redirects (we'll count them as valid for this purpose)
+    if (response.status >= 200 && response.status < 400) {
+      return 'valid';
+    } else { // 4xx and 5xx are client/server errors
+      return 'invalid';
+    }
+  } catch (error) {
+    // This block catches CORS errors, network errors, timeouts, etc.
+    // It's very difficult to distinguish them reliably on the frontend.
+    // We'll mark them as "error_checking".
+    return 'error_checking';
+  }
 };
