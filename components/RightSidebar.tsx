@@ -8,6 +8,7 @@ interface RightSidebarProps {
   isLoading: boolean; // To disable buttons and show pulse
   isGeneratingReport: boolean;
   onExportReport: (format: 'md' | 'pdf') => void;
+  onExportSources: () => void;
   sourceAssessments: SourceAssessment[];
   onSelectSource: (source: SourceAssessment) => void;
   onSaveSession: () => void;
@@ -55,6 +56,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   isLoading,
   isGeneratingReport,
   onExportReport,
+  onExportSources,
   sourceAssessments,
   onSelectSource,
   onSaveSession,
@@ -195,6 +197,18 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         <div className="pt-3 border-t border-[#5c6f7e]/50">
             <h3 className="text-sm font-medium text-[#e2a32d] mb-2">📤 Export:</h3>
             <div className="space-y-3">
+                 <button
+                    onClick={onExportSources}
+                    disabled={anyLoading || sourceAssessments.length === 0}
+                    className="w-full flex items-center justify-center p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    aria-label="Export assessed sources as a Markdown table"
+                    title={sourceAssessments.length === 0 ? "No sources to export" : "Export sources as a Markdown table"}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-8.625 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125h1.5m12.75 1.5v-1.5c0-.621-.504-1.125-1.125-1.125h-1.5m-10.125 0h7.5c.621 0 1.125.504 1.125 1.125M10.875 5.625h2.25c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504-1.125-1.125-1.125h-2.25c-.621 0-1.125-.504-1.125-1.125v-1.5c0-.621.504-1.125 1.125-1.125z" />
+                    </svg>
+                    Export Sources (MD)
+                 </button>
                  <button
                     onClick={() => onExportReport('md')}
                     disabled={anyLoading}

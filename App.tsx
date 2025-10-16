@@ -582,6 +582,29 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
   };
 
+  const handleExportSources = () => {
+    if (sourceAssessments.length === 0) {
+      alert("No sources have been assessed to export.");
+      return;
+    }
+
+    const header = "| Index | Source | Usefulness Assessment | Notes | Rating (1-5) | URL |";
+    const separator = "|---|---|---|---|---|---|";
+
+    const rows = sourceAssessments
+      .map(s => 
+        `| ${s.index} | ${s.name.replace(/\|/g, '\\|')} | ${s.assessment.replace(/\|/g, '\\|')} | ${s.notes.replace(/\|/g, '\\|')} | ${s.rating} | ${s.url} |`
+      )
+      .join('\n');
+    
+    const fullMarkdownContent = `${header}\n${separator}\n${rows}`;
+    
+    const filename = `SIFT_Sources_${(sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.md`;
+    
+    downloadMarkdown(fullMarkdownContent, filename);
+    setLlmStatusMessage("Source list exported successfully as Markdown.");
+  };
+
   const handleExportReport = async (format: 'md' | 'pdf') => {
     if (chatMessages.length === 0) {
       alert("No session content to export.");
@@ -814,6 +837,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
           isLoading={isLoading}
           isGeneratingReport={isGeneratingReport}
           onExportReport={handleExportReport}
+          onExportSources={handleExportSources}
           sourceAssessments={sourceAssessments}
           onSelectSource={setSelectedSourceForModal}
           onSaveSession={handleManualSave}
