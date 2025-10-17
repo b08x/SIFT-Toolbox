@@ -7,7 +7,7 @@ interface RightSidebarProps {
   onGenerateCommunityNote: () => void;
   isLoading: boolean; // To disable buttons and show pulse
   isGeneratingReport: boolean;
-  onExportReport: (format: 'md' | 'pdf') => void;
+  onExportReport: (format: 'md' | 'pdf' | 'substack') => void;
   onExportSources: () => void;
   sourceAssessments: SourceAssessment[];
   onSelectSource: (source: SourceAssessment) => void;
@@ -219,6 +219,17 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                     </svg>
                     Export Report (MD)
+                </button>
+                 <button
+                    onClick={() => onExportReport('substack')}
+                    disabled={anyLoading}
+                    className="w-full flex items-center justify-center p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    aria-label="Export report for Substack as an HTML file"
+                >
+                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+                    </svg>
+                    Export for Substack (HTML)
                 </button>
                  <button
                     onClick={() => onExportReport('pdf')}

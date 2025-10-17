@@ -331,3 +331,64 @@ export const checkLinkStatus = async (url: string): Promise<LinkValidationStatus
     return 'error_checking';
   }
 };
+
+/**
+ * Parses a Markdown table string into headers and rows.
+ * @param tableMarkdown The string containing a single Markdown table.
+ * @returns An object with headers and rows, or null if parsing fails.
+ */
+const parseTable = (tableMarkdown: string): { headers: string[]; rows: string[][] } | null => {
+    const lines = tableMarkdown.trim().split('\n');
+    if (lines.length < 2) return null; // Must have at least a header and separator
+
+    const headerLine = lines[0];
+    const separatorLine = lines[1];
+    const rowLines = lines.slice(2);
+
+    // Basic validation for table structure
+    if (!headerLine.includes('|') || !separatorLine.match(/\|(?:\s*:?-+:?\s*\|)+/)) {
+        return null;
+    }
+
+    const parseRow = (row: string): string[] => 
+        row.split('|').map(s => s.trim()).slice(1, -1);
+
+    const headers = parseRow(headerLine);
+    const rows = rowLines.map(parseRow);
+
+    return { headers, rows };
+};
+
+
+/**
+ * Transforms Markdown tables into a narrative blockquote format suitable for Substack.
+ * @param markdown The input Markdown string.
+ * @returns A new Markdown string with tables converted to blockquotes.
+ */
+export const transformMarkdownForSubstack = (markdown: string): string => {
+    // This regex finds blocks that look like Markdown tables.
+    const tableRegex = /(?:^|\n\n)((?:\|[^\n]+\|\r?\n){2,})/g;
+
+    return markdown.replace(tableRegex, (tableMatch) => {
+        const tableData = parseTable(tableMatch);
+        if (!tableData) return tableMatch; // If it's not a valid table, return it unchanged.
+
+        const { headers, rows } = tableData;
+
+        const blockquotes = rows.map(rowCells => {
+            const fields = rowCells.map((cell, index) => {
+                const header = headers[index];
+                // Create a line only if both header and cell have meaningful content.
+                if (header && cell && cell.trim() !== '' && cell.trim() !== 'N/A') {
+                    return `> **${header}:** ${cell}`;
+                }
+                return '';
+            }).filter(Boolean); // Remove any empty lines
+
+            return fields.join('\n');
+        });
+
+        // Join each record with a horizontal rule for separation, and filter out empty records.
+        return '\n\n' + blockquotes.filter(Boolean).join('\n\n---\n\n') + '\n\n';
+    });
+};

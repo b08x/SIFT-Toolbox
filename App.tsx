@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { marked } from 'marked';
 
 import { ChatInterface } from './components/ChatInterface';
 import { ErrorAlert } from './components/ErrorAlert';
@@ -29,8 +30,8 @@ import {
 } from './types';
 import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts';
 import { AVAILABLE_PROVIDERS_MODELS } from './models.config';
-import { downloadMarkdown, downloadPdfWithBrowserPrint } from './utils/download';
-import { parseSourceAssessmentsFromMarkdown, correctRedirectLinksInMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
+import { downloadMarkdown, downloadPdfWithBrowserPrint, downloadHtml } from './utils/download';
+import { parseSourceAssessmentsFromMarkdown, correctRedirectLinksInMarkdown, checkLinkStatus, transformMarkdownForSubstack } from './utils/apiHelpers.ts';
 
 // Helper function to parse rating string into a comparable number
 const getNumericRating = (ratingStr: string): number => {
@@ -605,7 +606,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     setLlmStatusMessage("Source list exported successfully as Markdown.");
   };
 
-  const handleExportReport = async (format: 'md' | 'pdf') => {
+  const handleExportReport = async (format: 'md' | 'pdf' | 'substack') => {
     if (chatMessages.length === 0) {
       alert("No session content to export.");
       return;
@@ -673,13 +674,19 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
       }
 
       const filenameBase = `SIFT_Report_${(sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}`;
-      
+      const reportTitle = `## Report: ${sessionTopic || 'Untitled Session'}\n\n**Generated:** ${new Date().toLocaleString()}\n\n---\n\n`;
+      const fullReportMarkdown = reportTitle + reportText;
+
       if (format === 'md') {
-        downloadMarkdown(reportText, `${filenameBase}.md`);
+        downloadMarkdown(fullReportMarkdown, `${filenameBase}.md`);
         setLlmStatusMessage("Report exported successfully as Markdown.");
+      } else if (format === 'substack') {
+        const substackMarkdown = transformMarkdownForSubstack(fullReportMarkdown);
+        const htmlContent = marked.parse(substackMarkdown) as string;
+        downloadHtml(htmlContent, `${filenameBase}.html`);
+        setLlmStatusMessage("Report exported successfully for Substack (HTML).");
       } else if (format === 'pdf' && printWindow) {
-        const reportTitle = `## Report: ${sessionTopic || 'Untitled Session'}\n\n**Generated:** ${new Date().toLocaleString()}\n\n---\n\n`;
-        downloadPdfWithBrowserPrint(reportTitle + reportText, `${filenameBase}.pdf`, printWindow);
+        downloadPdfWithBrowserPrint(fullReportMarkdown, `${filenameBase}.pdf`, printWindow);
         setLlmStatusMessage("Report sent to print dialog.");
       }
 
@@ -768,7 +775,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                   title="Open Settings"
               >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.127c-.332.183-.582.495-.645.87l-.213 1.281c-.09.543-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37-.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.127.332-.183.582-.495.645-.87l.213-1.281z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.127c-.332.183-.582.495-.645.87l-.213 1.281c-.09.543-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.127.332-.183.582-.495.645-.87l.213-1.281z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
               </button>
