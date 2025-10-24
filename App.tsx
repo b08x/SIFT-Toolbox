@@ -9,7 +9,6 @@ import { SettingsModal } from './components/SettingsModal';
 import { AgenticApiService } from './services/agenticApiService.ts';
 import { SourceAssessmentModal } from './components/SourceAssessmentModal';
 import { LeftSidebar } from './components/LeftSidebar';
-import { AiReasoningPanel } from './components/UserQueryPanel';
 import * as SessionManager from './utils/sessionManager.ts';
 
 
@@ -72,8 +71,6 @@ const AppInternal = (): React.ReactElement => {
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [llmStatusMessage, setLlmStatusMessage] = useState<string | null>(null);
-  const [aiReasoningStream, setAiReasoningStream] = useState<string>('');
-  const [isProcessingReasoning, setIsProcessingReasoning] = useState<boolean>(false);
 
   // Session Save State
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -243,8 +240,6 @@ const AppInternal = (): React.ReactElement => {
     setSessionUrls('');
     setSourceAssessments([]);
     setSelectedSourceForModal(null);
-    setAiReasoningStream('');
-    setIsProcessingReasoning(false);
     setCustomSystemPrompt('');
 
     SessionManager.clearSession();
@@ -272,9 +267,7 @@ const AppInternal = (): React.ReactElement => {
   const processStreamEvents = async (stream: AsyncGenerator<StreamEvent>, aiMessageId: string) => {
     let accumulatedText = '';
     let inThinkBlock = false;
-  
-    setAiReasoningStream('');
-    setIsProcessingReasoning(false);
+    let accumulatedReasoning = '';
 
     // Buffering logic for smoother UI updates
     let textBufferForUiUpdate = '';
@@ -307,12 +300,11 @@ const AppInternal = (): React.ReactElement => {
                   const endTagIndex = streamBuffer.indexOf('</think>');
                   if (endTagIndex !== -1) {
                       const reasoningChunk = streamBuffer.substring(0, endTagIndex);
-                      setAiReasoningStream(prev => prev + reasoningChunk);
+                      accumulatedReasoning += reasoningChunk;
                       streamBuffer = streamBuffer.substring(endTagIndex + '</think>'.length);
                       inThinkBlock = false;
-                      setIsProcessingReasoning(false);
                   } else {
-                      setAiReasoningStream(prev => prev + streamBuffer);
+                      accumulatedReasoning += streamBuffer;
                       streamBuffer = '';
                   }
               } else {
@@ -322,7 +314,6 @@ const AppInternal = (): React.ReactElement => {
                       textBufferForUiUpdate += normalChunk;
                       streamBuffer = streamBuffer.substring(startTagIndex + '<think>'.length);
                       inThinkBlock = true;
-                      setIsProcessingReasoning(true);
                   } else {
                       textBufferForUiUpdate += streamBuffer;
                       streamBuffer = '';
@@ -343,14 +334,16 @@ const AppInternal = (): React.ReactElement => {
           setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: `Error: ${event.error}`, isLoading: false, isError: true } : m));
           return; // Stop processing on error
         case 'final':
-          flushUiBuffer(); // Final flush to show all chunk text
+          flushUiBuffer(); // Final flush to capture all remaining text.
 
-          let correctedFullText = event.fullText;
+          // Use the locally accumulated text which has been stripped of the <think> tags.
+          // This ensures the main message body does not contain the reasoning block.
+          let textForReport = accumulatedText;
           if (event.groundingSources && event.groundingSources.length > 0) {
-              correctedFullText = correctRedirectLinksInMarkdown(event.fullText, event.groundingSources);
+              textForReport = correctRedirectLinksInMarkdown(textForReport, event.groundingSources);
           }
 
-          const newAssessments = parseSourceAssessmentsFromMarkdown(correctedFullText);
+          const newAssessments = parseSourceAssessmentsFromMarkdown(textForReport);
 
           if (newAssessments.length > 0) {
               setSourceAssessments(prevAssessments => {
@@ -389,12 +382,13 @@ const AppInternal = (): React.ReactElement => {
           }
           setChatMessages(prev => prev.map(m => m.id === aiMessageId ? {
             ...m,
-            text: correctedFullText, // Use the definitive corrected full text
+            text: textForReport, // Use the definitive stripped & corrected full text
             isLoading: false,
             groundingSources: event.groundingSources,
             isInitialSIFTReport: event.isInitialSIFTReport,
             originalQueryReportType: event.originalQueryReportType,
             modelId: event.modelId,
+            reasoning: accumulatedReasoning.trim(),
           } : m));
           setLlmStatusMessage("Response complete.");
           break;
@@ -640,7 +634,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             setIsGeneratingReport(false);
             return;
         }
-        printWindow.document.write('<html><head><title>Generating SIFT Report...</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;margin:0;background-color:#212934;color:#e2a32d}.container{text-align:center}.spinner{border:4px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#e2a32d;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 20px}@keyframes spin{to{transform:rotate(360deg)}}h1{color:#f5b132}p{color:#95aac0}</style></head><body><div class="container"><div class="spinner"></div><h1>Generating Report...</h1><p>Please wait, this may take a moment.</p></div></body></html>');
+        printWindow.document.write('<html><head><title>Generating SIFT Report...</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;margin:0;background-color:var(--background);color:var(--primary)}.container{text-align:center}.spinner{border:4px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:var(--primary);width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 20px}@keyframes spin{to{transform:rotate(360deg)}}h1{color:var(--primary)}p{color:var(--text-light)}</style></head><body><div class="container"><div class="spinner"></div><h1>Generating Report...</h1><p>Please wait, this may take a moment.</p></div></body></html>');
     }
 
     try {
@@ -720,7 +714,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
   const selectedModelConfig = getSelectedModelConfig();
 
   return (
-    <div className="flex h-screen max-h-screen bg-[#212934] text-gray-200">
+    <div className="flex h-screen max-h-screen bg-main text-main">
       <LeftSidebar
         isOpen={isSidebarOpen}
         onToggleClose={() => setIsSidebarOpen(false)}
@@ -748,7 +742,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
               {!isSidebarOpen && (
                 <button
                   onClick={() => setIsSidebarOpen(true)}
-                  className="p-2 text-sm bg-gray-600 hover:bg-gray-500 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-gray-500 transition-colors"
+                  className="p-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-border transition-colors"
                   title="Open Sidebar"
                 >
                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -757,13 +751,13 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                 </button>
               )}
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[#e2a32d] flex items-center">
+                <h1 className="text-2xl md:text-3xl font-bold text-primary-accent flex items-center">
                     <span className="mr-2 text-3xl md:text-4xl">🔍</span>
                     SIFT Toolbox
                 </h1>
                 {chatMessages.length > 0 && (
-                  <p className="text-sm text-[#95aac0]">
-                      Model: <span className="font-semibold text-[#c36e26]">{getSelectedModelConfig()?.name || 'N/A'}</span>
+                  <p className="text-sm text-light">
+                      Model: <span className="font-semibold text-primary-accent">{getSelectedModelConfig()?.name || 'N/A'}</span>
                   </p>
                 )}
               </div>
@@ -771,17 +765,17 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             <div className="flex items-center space-x-2">
               <button
                   onClick={() => setIsSettingsModalOpen(true)}
-                  className="p-2 text-sm bg-gray-600 hover:bg-gray-500 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-gray-500 transition-colors"
+                  className="p-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-border transition-colors"
                   title="Open Settings"
               >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.127c-.332.183-.582.495-.645.87l-.213 1.281c-.09.543-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.127.332-.183.582-.495.645-.87l.213-1.281z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.127c-.332.183-.582.495-.645-.87l-.213 1.281c-.09.543-.56.94-1.11.94h-2.593c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.127.332-.183.582-.495.645-.87l.213-1.281z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
               </button>
               <button
                   onClick={handleNewSession}
-                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-blue-500 transition-colors"
+                  className="px-4 py-2 text-sm bg-primary hover:brightness-110 text-on-primary font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary transition-all"
                   title="End this session and start a new one"
               >
                   New Session
@@ -795,26 +789,20 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             {chatMessages.length === 0 ? (
                 <div className="flex-grow flex flex-col items-center justify-center text-center p-4">
                   <span className="text-6xl mb-4">👋</span>
-                  <h2 className="text-2xl font-bold text-gray-200">Welcome to the SIFT Toolbox</h2>
-                  <p className="text-[#95aac0] mt-2 max-w-md">
+                  <h2 className="text-2xl font-bold text-main">Welcome to the SIFT Toolbox</h2>
+                  <p className="text-light mt-2 max-w-md">
                     Use the sidebar on the left to configure your session topic, provide context, and upload files to begin your investigation.
                   </p>
                   <button 
                     onClick={() => { setIsSidebarOpen(true); setSidebarView('config'); }}
-                    className="mt-6 px-5 py-2.5 bg-gradient-to-r from-[#e2a32d] to-[#c36e26] hover:from-[#f5b132] hover:to-[#d67e2a] text-white font-bold text-base rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#c36e26]/50"
+                    className="mt-6 px-5 py-2.5 bg-primary hover:brightness-110 text-on-primary font-bold text-base rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-primary/50"
                   >
                     Open Configuration
                   </button>
                 </div>
               ) : (
                 <>
-                  {(aiReasoningStream || isProcessingReasoning) && (
-                    <AiReasoningPanel
-                      aiReasoningStream={aiReasoningStream}
-                      isProcessingReasoning={isProcessingReasoning}
-                    />
-                  )}
-                  <div className="flex-grow pl-0 md:pl-4 min-w-0"> 
+                  <div className="flex-grow min-w-0"> 
                     <ChatInterface
                       ref={chatContainerRef}
                       messages={chatMessages}
@@ -832,7 +820,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
               )}
           </div>
 
-          <footer className="mt-auto pt-3 text-center text-xs text-[#95aac0]/70 flex-shrink-0">
+          <footer className="mt-auto pt-3 text-center text-xs text-light/70 flex-shrink-0">
             <p>Reports compiled and contextualized using Language Models. | SIFT Methodology.</p>
           </footer>
       </main>

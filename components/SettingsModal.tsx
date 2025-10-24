@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AgenticApiService } from '../services/agenticApiService.ts';
 import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter } from '../types';
@@ -102,10 +101,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const getValidationStatusUI = (provider: AIProvider) => {
         const status = apiKeyValidation[provider];
-        if (isValidationLoading[provider]) return <span className="text-xs text-[#e2a32d]">Validating...</span>;
-        if (status === 'valid') return <span className="text-xs text-green-400">Key is valid.</span>;
-        if (status === 'invalid') return <span className="text-xs text-red-400">Invalid or empty key.</span>;
-        return <span className="text-xs text-[#95aac0]/70">Key is unchecked.</span>;
+        if (isValidationLoading[provider]) return <span className="text-xs text-primary-accent">Validating...</span>;
+        if (status === 'valid') return <span className="text-xs text-status-success">Key is valid.</span>;
+        if (status === 'invalid') return <span className="text-xs text-status-error">Invalid or empty key.</span>;
+        return <span className="text-xs text-light/70">Key is unchecked.</span>;
     };
     
     const modelsForSelectedProvider = availableModels.filter(m => m.provider === selectedProviderKey);
@@ -133,7 +132,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const renderApiKeyInput = (provider: AIProvider, label: string, placeholder: string, instructions?: React.ReactNode) => (
         <div>
-            <label htmlFor={`modal-${provider}-key`} className="block text-sm font-medium text-gray-200 mb-1">{label}</label>
+            <label htmlFor={`modal-${provider}-key`} className="block text-sm font-medium text-main mb-1">{label}</label>
             <div className="flex items-center space-x-2">
                 <input
                     id={`modal-${provider}-key`}
@@ -141,12 +140,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     value={localKeys[provider] || ''}
                     onChange={(e) => updateApiKey(provider, e.target.value)}
                     placeholder={placeholder}
-                    className="flex-grow p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm focus:ring-[#e2a32d] focus:border-[#e2a32d] text-gray-200"
+                    className="flex-grow p-2 bg-main border border-ui rounded-md shadow-sm focus:ring-primary focus:border-primary text-main"
                 />
                 <button
                     onClick={() => validateKey(provider)}
                     disabled={isValidationLoading[provider] || !localKeys[provider]?.trim()}
-                    className="px-3 py-2 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     Validate
                 </button>
@@ -166,14 +165,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             role="dialog"
         >
             <div 
-                className="bg-[#333e48] text-gray-200 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-[#5c6f7e]"
+                className="bg-content text-main rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-ui"
                 onClick={(e) => e.stopPropagation()}
             >
-                <header className="flex items-center justify-between p-4 border-b border-[#5c6f7e] flex-shrink-0">
-                    <h2 className="text-lg font-bold text-[#e2a32d]">Settings</h2>
+                <header className="flex items-center justify-between p-4 border-b border-ui flex-shrink-0">
+                    <h2 className="text-lg font-bold text-primary-accent">Settings</h2>
                     <button 
                         onClick={onClose} 
-                        className="p-1 rounded-full text-gray-400 hover:bg-[#5c6f7e] hover:text-white transition-colors"
+                        className="p-1 rounded-full text-light hover:bg-border hover:text-main transition-colors"
                         aria-label="Close settings"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -182,25 +181,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                 </header>
                 
-                <main className="p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-[#5c6f7e] scrollbar-track-[#212934] space-y-8">
+                <main className="p-6 overflow-y-auto space-y-8">
                     {/* Section 2: AI Provider & API Keys */}
                     <section>
-                        <h2 className="text-xl font-semibold text-[#e2a32d] mb-4 border-b border-[#5c6f7e]/50 pb-2">Language Model Provider & API Keys</h2>
+                        <h2 className="text-xl font-semibold text-primary-accent mb-4 border-b border-ui/50 pb-2">Language Model Provider & API Keys</h2>
                         <div className="space-y-4">
                             <div>
-                                <label htmlFor="provider-select-modal" className="block text-sm font-medium text-gray-200 mb-1">Language Model Provider</label>
+                                <label htmlFor="provider-select-modal" className="block text-sm font-medium text-main mb-1">Language Model Provider</label>
                                 <select
                                     id="provider-select-modal"
                                     value={selectedProviderKey}
                                     onChange={handleProviderChange}
-                                    className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm"
+                                    className="w-full p-2 bg-main border border-ui rounded-md shadow-sm"
                                 >
                                     {uniqueProviders.map(p => <option key={p} value={p}>{(p as string).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>)}
                                 </select>
                             </div>
                             
                             {/* Main API key for the selected provider */}
-                            {selectedProviderKey === AIProvider.GOOGLE_GEMINI && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key", "Enter your Gemini API Key", <p className="text-xs text-[#95aac0] mt-1">Get key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[#e2a32d] underline">Google AI Studio</a>.</p>)}
+                            {selectedProviderKey === AIProvider.GOOGLE_GEMINI && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key", "Enter your Gemini API Key", <p className="text-xs text-light mt-1">Get key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary-accent underline">Google AI Studio</a>.</p>)}
                             {selectedProviderKey === AIProvider.OPENAI && renderApiKeyInput(AIProvider.OPENAI, "OpenAI API Key", "Enter your OpenAI API Key")}
                             {selectedProviderKey === AIProvider.MISTRAL && renderApiKeyInput(AIProvider.MISTRAL, "Mistral API Key", "Enter your Mistral API Key")}
                             {selectedProviderKey === AIProvider.OPENROUTER && renderApiKeyInput(AIProvider.OPENROUTER, "OpenRouter API Key", "Enter your OpenRouter API Key")}
@@ -210,10 +209,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <>
                                     <div className="pt-2">
                                         <label htmlFor="gemini-preproc" className="flex items-center space-x-2 cursor-pointer">
-                                            <input type="checkbox" id="gemini-preproc" checked={enableGeminiPreprocessing} onChange={(e) => setEnableGeminiPreprocessing(e.target.checked)} className="h-4 w-4 rounded border-gray-500 text-[#c36e26] focus:ring-[#c36e26] accent-[#c36e26]" />
-                                            <span className="text-sm font-medium text-gray-200">Enable Gemini Preprocessing</span>
+                                            <input type="checkbox" id="gemini-preproc" checked={enableGeminiPreprocessing} onChange={(e) => setEnableGeminiPreprocessing(e.target.checked)} className="h-4 w-4 rounded border-gray-500 text-primary focus:ring-primary accent-primary" />
+                                            <span className="text-sm font-medium text-main">Enable Gemini Preprocessing</span>
                                         </label>
-                                        <p className="text-xs text-[#95aac0] mt-1">Use Gemini for web search grounding with non-Google models. Requires a valid Google Gemini API key below.</p>
+                                        <p className="text-xs text-light mt-1">Use Gemini for web search grounding with non-Google models. Requires a valid Google Gemini API key below.</p>
                                     </div>
                                     {enableGeminiPreprocessing && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key (for Preprocessing)", "Enter your Gemini API Key")}
                                 </>
@@ -223,11 +222,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     
                     {/* Section 3: Model Configuration */}
                     <section>
-                         <h2 className="text-xl font-semibold text-[#e2a32d] mb-4 border-b border-[#5c6f7e]/50 pb-2">Model Configuration</h2>
+                         <h2 className="text-xl font-semibold text-primary-accent mb-4 border-b border-ui/50 pb-2">Model Configuration</h2>
                          <div className="space-y-4">
                             <div>
-                                <label htmlFor="model-select-modal" className="block text-sm font-medium text-gray-200 mb-1">Model</label>
-                                <select id="model-select-modal" value={selectedModelId} onChange={(e) => onSelectModelId(e.target.value)} className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm">
+                                <label htmlFor="model-select-modal" className="block text-sm font-medium text-main mb-1">Model</label>
+                                <select id="model-select-modal" value={selectedModelId} onChange={(e) => onSelectModelId(e.target.value)} className="w-full p-2 bg-main border border-ui rounded-md shadow-sm">
                                     {modelsForSelectedProvider.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                 </select>
                             </div>
@@ -253,41 +252,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     
                     {/* Section 4: Prompt Configuration */}
                     <section>
-                        <h2 className="text-xl font-semibold text-[#e2a32d] mb-4 border-b border-[#5c6f7e]/50 pb-2">Prompt & Analysis Configuration</h2>
+                        <h2 className="text-xl font-semibold text-primary-accent mb-4 border-b border-ui/50 pb-2">Prompt & Analysis Configuration</h2>
                         <div className="space-y-4">
                             <div>
-                                <label htmlFor="prompt-preset-select" className="block text-sm font-medium text-gray-200 mb-1">Load Preset Prompt</label>
+                                <label htmlFor="prompt-preset-select" className="block text-sm font-medium text-main mb-1">Load Preset Prompt</label>
                                 <select
                                     id="prompt-preset-select"
                                     onChange={handlePresetChange}
                                     value={selectedPreset}
-                                    className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm"
+                                    className="w-full p-2 bg-main border border-ui rounded-md shadow-sm"
                                 >
                                     <option value="custom">Custom</option>
                                     {promptPresets.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                                 </select>
-                                <p className="text-xs text-[#95aac0] mt-1">Select a preset to guide the AI's analysis style. This will replace the content of the text area below.</p>
+                                <p className="text-xs text-light mt-1">Select a preset to guide the AI's analysis style. This will replace the content of the text area below.</p>
                             </div>
                             <div>
-                                <label htmlFor="custom-system-prompt" className="block text-sm font-medium text-gray-200 mb-1">System Prompt</label>
+                                <label htmlFor="custom-system-prompt" className="block text-sm font-medium text-main mb-1">System Prompt</label>
                                 <textarea
                                     id="custom-system-prompt"
                                     rows={8}
                                     value={customSystemPrompt}
                                     onChange={(e) => setCustomSystemPrompt(e.target.value)}
                                     placeholder={SIFT_CHAT_SYSTEM_PROMPT}
-                                    className="w-full p-2 bg-[#212934] border border-[#5c6f7e] rounded-md shadow-sm text-sm"
+                                    className="w-full p-2 bg-main border border-ui rounded-md shadow-sm text-sm"
                                 />
-                                <p className="text-xs text-[#95aac0] mt-1">Leave this empty to use the default SIFT prompt. This provides high-level instructions to the model for the entire session.</p>
+                                <p className="text-xs text-light mt-1">Leave this empty to use the default SIFT prompt. This provides high-level instructions to the model for the entire session.</p>
                             </div>
                         </div>
                     </section>
                 </main>
 
-                <footer className="p-4 border-t border-[#5c6f7e] text-right flex-shrink-0">
+                <footer className="p-4 border-t border-ui text-right flex-shrink-0">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors"
+                        className="px-4 py-2 bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors"
                     >
                         Done
                     </button>

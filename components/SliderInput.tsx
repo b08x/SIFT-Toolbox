@@ -39,7 +39,7 @@ export const SliderInput: React.FC<SliderInputProps> = ({
 
   return (
     <div className={`space-y-1 ${disabled ? 'opacity-60' : ''}`}>
-      <label htmlFor={id} className="block text-xs font-medium text-[#e2a32d]">
+      <label htmlFor={id} className="block text-xs font-medium text-primary-accent">
         {label}
       </label>
       <div className="flex items-center space-x-2">
@@ -53,7 +53,7 @@ export const SliderInput: React.FC<SliderInputProps> = ({
           value={value}
           onChange={handleSliderChange}
           disabled={disabled}
-          className="w-full h-2 bg-[#5c6f7e] rounded-lg appearance-none cursor-pointer accent-[#c36e26] disabled:cursor-not-allowed"
+          className="w-full h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary disabled:cursor-not-allowed"
         />
         <input
           type="number"
@@ -65,11 +65,11 @@ export const SliderInput: React.FC<SliderInputProps> = ({
           value={value}
           onChange={handleInputChange}
           disabled={disabled}
-          className="w-20 p-1.5 text-xs bg-[#212934] border border-[#5c6f7e] rounded-md text-gray-200 focus:ring-[#e2a32d] focus:border-[#e2a32d] disabled:cursor-not-allowed"
+          className="w-20 p-1.5 text-xs bg-main border border-ui rounded-md text-main focus:ring-primary focus:border-primary disabled:cursor-not-allowed"
         />
-         {unit && <span className="text-xs text-[#95aac0]">{unit}</span>}
+         {unit && <span className="text-xs text-light">{unit}</span>}
       </div>
-      {description && <p className="text-xs text-[#95aac0]/70 italic mt-0.5">{description}</p>}
+      {description && <p className="text-xs text-light/70 italic mt-0.5">{description}</p>}
     </div>
   );
 };

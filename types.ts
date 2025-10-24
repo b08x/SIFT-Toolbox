@@ -46,6 +46,7 @@ export interface ChatMessage {
   originalQueryReportType?: ReportType;
   isFromCache?: boolean;
   structuredData?: any;
+  reasoning?: string;
 }
 
 // For the new left query panel

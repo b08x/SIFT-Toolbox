@@ -186,8 +186,14 @@ export const parseSiftFullCheckReport = (markdownText: string): ParsedReportSect
       // Append to the content of the last section if no new header is found
       sections[sections.length - 1].content += `\n\n${trimmedPart}`;
     } else if (trimmedPart) {
-      // If it's not a header and no sections exist, treat as miscellaneous preamble content
-      sections.push({ title: "Miscellaneous", rawTitle: "Miscellaneous", content: trimmedPart, level: 0 });
+      // If it's not a header and no sections exist, this is likely preamble text
+      // that came after the initial preamble block. Instead of a "Miscellaneous" tab,
+      // we'll append it to the initial "Report Information" section if it exists.
+      const preambleSection = sections.find(s => s.title === "Report Information");
+      if (preambleSection) {
+        preambleSection.content += `\n\n${trimmedPart}`;
+      }
+      // Otherwise, we discard it to avoid creating an unwanted "Miscellaneous" tab.
     }
   }
 

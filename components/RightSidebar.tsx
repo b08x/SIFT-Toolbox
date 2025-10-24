@@ -21,26 +21,34 @@ const LinkStatusIcon: React.FC<{ status: LinkValidationStatus | undefined }> = (
     switch (status) {
         case 'checking':
             return (
-                <svg className="animate-spin h-3.5 w-3.5 mr-2 text-[#95aac0] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" title="Checking link...">
+                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
+                <svg className="animate-spin h-3.5 w-3.5 mr-2 text-light flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <title>Checking link...</title>
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
             );
         case 'valid':
             return (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} title="Link appears to be valid.">
+                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-status-success flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <title>Link appears to be valid.</title>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             );
         case 'invalid':
             return (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} title="Link appears to be broken or inaccessible.">
+                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-status-error flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <title>Link appears to be broken or inaccessible.</title>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             );
         case 'error_checking':
             return (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} title="Could not verify link status (may be due to CORS restrictions).">
+                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-2 text-status-warning flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <title>Could not verify link status (may be due to CORS restrictions).</title>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             );
@@ -70,7 +78,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
     switch (saveStatus) {
       case 'saving':
         return (
-          <div className="flex items-center text-xs text-[#e2a32d]">
+          <div className="flex items-center text-xs text-primary-accent">
             <svg className="animate-spin h-3 w-3 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -80,7 +88,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         );
       case 'saved':
         return (
-          <div className="flex items-center text-xs text-green-400">
+          <div className="flex items-center text-xs text-status-success">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
@@ -89,7 +97,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         );
       case 'error':
         return (
-          <div className="flex items-center text-xs text-red-400">
+          <div className="flex items-center text-xs text-status-error">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -98,7 +106,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         );
       default: // idle
         return (
-            <div className="text-xs text-[#95aac0]/70 italic">
+            <div className="text-xs text-light/70 italic">
                 Auto-saves on change.
             </div>
         );
@@ -106,35 +114,35 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   };
 
   return (
-    <aside className="w-64 md:w-72 bg-[#333e48]/90 p-4 shadow-lg flex-shrink-0 h-full overflow-y-auto border-l border-[#5c6f7e] scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-700/50">
-      <div className="sticky top-0 bg-[#333e48]/80 backdrop-blur-sm -mt-4 -mx-4 px-4 py-3 z-10 border-b border-[#5c6f7e]">
-        <h2 className="text-lg font-semibold text-[#e2a32d]">
+    <aside className="w-64 md:w-72 bg-content/90 p-4 shadow-lg flex-shrink-0 h-full overflow-y-auto border-l border-ui">
+      <div className="sticky top-0 bg-content/80 backdrop-blur-sm -mt-4 -mx-4 px-4 py-3 z-10 border-b border-ui">
+        <h2 className="text-lg font-semibold text-primary-accent">
           Session Tools
         </h2>
       </div>
       
       {/* LLM Status Box */}
       <div className="my-4">
-        <h3 className="text-sm font-medium text-[#e2a32d] mb-1">🤖 LLM Status:</h3>
-        <div className="min-h-[60px] p-2.5 bg-[#212934] border border-[#5c6f7e] rounded-md text-xs text-gray-200 overflow-y-auto scrollbar-thin scrollbar-thumb-[#95aac0] scrollbar-track-[#333e48] flex items-start">
+        <h3 className="text-sm font-medium text-primary-accent mb-1">🤖 LLM Status:</h3>
+        <div className="min-h-[60px] p-2.5 bg-main border border-ui rounded-md text-xs text-main overflow-y-auto flex items-start">
           {anyLoading && <span className="status-pulse flex-shrink-0 mt-0.5"></span>}
           <span className="flex-grow">
-            {llmStatusMessage ? llmStatusMessage : <span className="italic text-[#95aac0]/70">Idle. Waiting for your input.</span>}
+            {llmStatusMessage ? llmStatusMessage : <span className="italic text-light/70">Idle. Waiting for your input.</span>}
           </span>
         </div>
       </div>
 
       {/* Session State Box */}
       <div className="mb-4">
-        <h3 className="text-sm font-medium text-[#e2a32d] mb-1">💾 Session State:</h3>
-        <div className="min-h-[44px] p-2 bg-[#212934] border border-[#5c6f7e] rounded-md flex items-center justify-between">
+        <h3 className="text-sm font-medium text-primary-accent mb-1">💾 Session State:</h3>
+        <div className="min-h-[44px] p-2 bg-main border border-ui rounded-md flex items-center justify-between">
             <div className="flex-grow pr-2">
                 {renderSaveStatus()}
             </div>
             <button
                 onClick={onSaveSession}
                 disabled={anyLoading || saveStatus === 'saving'}
-                className="px-3 py-1.5 text-xs bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                className="px-3 py-1.5 text-xs bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
                 title="Manually save the current session"
             >
                 Save Now
@@ -146,22 +154,22 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       {/* Source Reliability Section */}
       {sourceAssessments.length > 0 && (
         <div className="mb-4">
-          <h3 className="text-sm font-medium text-[#e2a32d] mb-1">🧐 Source Reliability</h3>
-          <div ref={sourceListContainerRef} className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-[#95aac0] scrollbar-track-[#333e48] bg-[#212934] p-2 rounded-md border border-[#5c6f7e]">
+          <h3 className="text-sm font-medium text-primary-accent mb-1">🧐 Source Reliability</h3>
+          <div ref={sourceListContainerRef} className="max-h-60 overflow-y-auto bg-main p-2 rounded-md border border-ui">
             <ul className="space-y-1">
               {sourceAssessments.map((assessment) => (
                 <li key={assessment.index} id={`source-item-${assessment.index}`}>
                   <button
                     onClick={() => onSelectSource(assessment)}
-                    className="w-full text-left text-xs p-1.5 rounded hover:bg-[#5c6f7e]/60 transition-colors focus:outline-none focus:ring-1 focus:ring-[#e2a32d]"
+                    className="w-full text-left text-xs p-1.5 rounded hover:bg-border/60 transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
                     title={`Click to view details for: ${assessment.name}`}
                   >
-                    <div className="font-semibold text-gray-200 truncate flex items-center">
+                    <div className="font-semibold text-main truncate flex items-center">
                        <LinkStatusIcon status={assessment.linkValidationStatus} />
-                       <span className="inline-block text-center w-6 mr-2 py-0.5 bg-[#212934] border border-[#5c6f7e] rounded text-xs font-bold text-[#e2a32d] flex-shrink-0">{assessment.index}</span>
+                       <span className="inline-block text-center w-6 mr-2 py-0.5 bg-main border border-ui rounded text-xs font-bold text-primary-accent flex-shrink-0">{assessment.index}</span>
                        <span className="truncate flex-1">{assessment.name}</span>
                     </div>
-                    <span className="text-[#95aac0]/80 truncate block pl-8">{assessment.assessment}</span>
+                    <span className="text-light/80 truncate block pl-8">{assessment.assessment}</span>
                   </button>
                 </li>
               ))}
@@ -173,11 +181,11 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       {/* Action Buttons */}
       <div className="space-y-3">
         <div>
-          <h3 className="text-sm font-medium text-[#e2a32d] mb-2">⚡ Actions:</h3>
+          <h3 className="text-sm font-medium text-primary-accent mb-2">⚡ Actions:</h3>
           <button
             onClick={onGenerateContextReport}
             disabled={anyLoading}
-            className="w-full p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full p-2.5 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             aria-label="Generate SIFT Context Report based on current chat"
           >
             📊 Generate Context Report
@@ -187,20 +195,20 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           <button
             onClick={onGenerateCommunityNote}
             disabled={anyLoading}
-            className="w-full p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full p-2.5 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             aria-label="Generate SIFT Community Note based on current chat"
           >
             📝 Generate Community Note
           </button>
         </div>
         {/* Session Export Buttons */}
-        <div className="pt-3 border-t border-[#5c6f7e]/50">
-            <h3 className="text-sm font-medium text-[#e2a32d] mb-2">📤 Export:</h3>
+        <div className="pt-3 border-t border-ui/50">
+            <h3 className="text-sm font-medium text-primary-accent mb-2">📤 Export:</h3>
             <div className="space-y-3">
                  <button
                     onClick={onExportSources}
                     disabled={anyLoading || sourceAssessments.length === 0}
-                    className="w-full flex items-center justify-center p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center p-2.5 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     aria-label="Export assessed sources as a Markdown table"
                     title={sourceAssessments.length === 0 ? "No sources to export" : "Export sources as a Markdown table"}
                 >
@@ -212,7 +220,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                  <button
                     onClick={() => onExportReport('md')}
                     disabled={anyLoading}
-                    className="w-full flex items-center justify-center p-2.5 text-sm bg-[#c36e26] hover:bg-[#d67e2a] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#d67e2a] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center p-2.5 text-sm bg-primary hover:brightness-110 text-on-primary font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     aria-label="Export report as a Markdown file"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
@@ -223,7 +231,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                  <button
                     onClick={() => onExportReport('substack')}
                     disabled={anyLoading}
-                    className="w-full flex items-center justify-center p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center p-2.5 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     aria-label="Export report for Substack as an HTML file"
                 >
                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
@@ -234,7 +242,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                  <button
                     onClick={() => onExportReport('pdf')}
                     disabled={anyLoading}
-                    className="w-full flex items-center justify-center p-2.5 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center p-2.5 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     aria-label="Export report as a PDF file"
                 >
                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
@@ -246,7 +254,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         </div>
       </div>
 
-      <div className="mt-auto pt-6 text-center text-xs text-[#95aac0]/70">
+      <div className="mt-auto pt-6 text-center text-xs text-light/70">
         <p>SIFT Toolbox Actions</p>
       </div>
     </aside>

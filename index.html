@@ -5,29 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SIFT Toolbox</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
     <style>
+      :root {
+        --background: #202124;
+        --background-secondary: #3c4043;
+        --text: #e8eaed;
+        --text-light: #9aa0a6;
+        --border: #5f6368;
+        --primary: #8ab4f8;
+        --primary-text: #202124;
+        --status-success: #34a853;
+        --status-error: #ea4335;
+        --status-warning: #fbbc05;
+      }
+
       /* Custom scrollbar for webkit browsers */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #212934; /* darkest color */
-        border-radius: 10px;
+        background: var(--background);
       }
       ::-webkit-scrollbar-thumb {
-        background: #5c6f7e; /* medium blue/gray */
-        border-radius: 10px;
+        background: var(--border);
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #95aac0; /* light blue/gray */
+        background: var(--text-light);
       }
+
       /* Basic styling for markdown content */
       .markdown-content h1, .markdown-content h2, .markdown-content h3 { margin-top: 1em; margin-bottom: 0.5em; font-weight: bold; }
-      .markdown-content h1 { font-size: 1.75em; color: #e2a32d; }
-      .markdown-content h2 { font-size: 1.3em; color: #e2a32d; }
-      .markdown-content h3 { font-size: 1.1em; color: #c36e26; }
-      .markdown-content p { margin-bottom: 0.75em; line-height: 1.5; color: #d1d5db; }
+      .markdown-content h1 { font-size: 1.75em; color: var(--primary); }
+      .markdown-content h2 { font-size: 1.3em; color: var(--primary); }
+      .markdown-content h3 { font-size: 1.1em; color: var(--primary); }
+      .markdown-content p { margin-bottom: 0.75em; line-height: 1.5; color: var(--text); }
       
       .markdown-content ul { list-style-type: none; margin-left: 0.5em; margin-bottom: 0.75em; padding-left: 0.5em; }
       .markdown-content ul > li { position: relative; padding-left: 1.4em; margin-bottom: 0.25em; }
@@ -36,20 +49,20 @@
         position: absolute;
         left: 0;
         top: 0.1em;
-        color: #e2a32d;
+        color: var(--primary);
       }
       .markdown-content ol { margin-left: 1.5em; margin-bottom: 0.75em; list-style-position: outside; padding-left: 1.5em; }
       .markdown-content ol li { margin-bottom: 0.25em; }
 
       .markdown-content table { border-collapse: collapse; width: 100%; margin-bottom: 1em; font-size: 0.9em; }
-      .markdown-content th, .markdown-content td { border: 1px solid #5c6f7e; padding: 6px; text-align: left; }
-      .markdown-content th { background-color: #212934; }
-      .markdown-content blockquote { border-left: 4px solid #5c6f7e; padding-left: 1em; margin-left: 0; font-style: italic; color: #95aac0; }
-      .markdown-content code { background-color: #212934; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em;}
-      .markdown-content pre { background-color: #212934; padding: 1em; border-radius: 4px; overflow-x: auto; }
+      .markdown-content th, .markdown-content td { border: 1px solid var(--border); padding: 6px; text-align: left; }
+      .markdown-content th { background-color: var(--background); }
+      .markdown-content blockquote { border-left: 4px solid var(--border); padding-left: 1em; margin-left: 0; font-style: italic; color: var(--text-light); }
+      .markdown-content code { background-color: var(--background); padding: 2px 4px; border-radius: 4px; font-family: 'Space Mono', monospace; font-size: 0.9em;}
+      .markdown-content pre { background-color: var(--background); padding: 1em; border-radius: 4px; overflow-x: auto; font-family: 'Space Mono', monospace; }
       .markdown-content pre code { padding: 0; background-color: transparent; }
-      .markdown-content a { color: #e2a32d; text-decoration: underline; }
-      .markdown-content a:hover { color: #f5b132; }
+      .markdown-content a { color: var(--primary); text-decoration: underline; }
+      .markdown-content a:hover { filter: brightness(1.2); }
       .markdown-content img { max-width: 100%; height: auto; border-radius: 0.375rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 
       /* Ensure full height for chat layout */
@@ -59,6 +72,7 @@
       body {
         display: flex;
         flex-direction: column;
+        font-family: 'Space Mono', monospace;
       }
       #root {
         flex-grow: 1;
@@ -72,103 +86,64 @@
         width: 8px;
         height: 8px;
         margin-right: 8px;
-        background-color: #e2a32d; /* mustard yellow */
+        background-color: var(--primary);
         border-radius: 50%;
         animation: pulse-animation 1.5s infinite ease-in-out;
         vertical-align: middle;
       }
 
       @keyframes pulse-animation {
-        0% {
-          transform: scale(0.8);
-          opacity: 0.7;
-        }
-        50% {
-          transform: scale(1.1);
-          opacity: 1;
-        }
-        100% {
-          transform: scale(0.8);
-          opacity: 0.7;
-        }
+        0% { transform: scale(0.8); opacity: 0.7; }
+        50% { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(0.8); opacity: 0.7; }
       }
 
       /* Tabbed Report Styles */
-      .tabs-container {
-        background-color: #2b3541; /* slightly lighter than message bubble */
-        border-radius: 0.5rem;
-        overflow: hidden;
-        border: 1px solid #5c6f7e;
-        margin-top: 0.5rem;
-        margin-bottom: 0.5rem;
-      }
-      .tabs-nav {
-        display: flex;
-        flex-wrap: wrap;
-        background-color: #212934;
-        padding: 4px;
-        border-bottom: 1px solid #5c6f7e;
-      }
-      .tab-button {
-        padding: 8px 12px;
-        margin: 2px;
-        border: 1px solid transparent;
-        background-color: transparent;
-        color: #95aac0;
-        cursor: pointer;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        transition: all 0.2s ease-in-out;
-        flex-shrink: 0;
-      }
-      .tab-button:hover {
-        background-color: #5c6f7e;
-        color: #ffffff;
-      }
-      .tab-button.active {
-        background-color: #e2a32d;
-        color: #212934;
-        font-weight: 700;
-      }
-      .tab-content {
-        padding: 12px;
-        background-color: #333e48;
-      }
+      .tabs-container { background-color: var(--background-secondary); border-radius: 0.5rem; overflow: hidden; border: 1px solid var(--border); margin-top: 0.5rem; margin-bottom: 0.5rem; }
+      .tabs-nav { display: flex; flex-wrap: wrap; background-color: var(--background); padding: 4px; border-bottom: 1px solid var(--border); }
+      .tab-button { padding: 8px 12px; margin: 2px; border: 1px solid transparent; background-color: transparent; color: var(--text-light); cursor: pointer; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 500; transition: all 0.2s ease-in-out; flex-shrink: 0; }
+      .tab-button:hover { background-color: var(--border); color: var(--text); }
+      .tab-button.active { background-color: var(--primary); color: var(--primary-text); font-weight: 700; }
+      .tab-content { padding: 12px; background-color: var(--background-secondary); }
 
       /* Source highlight animation */
       @keyframes highlight-fade {
-        from { background-color: rgba(226, 163, 45, 0.4); box-shadow: 0 0 8px rgba(226, 163, 45, 0.5); }
+        from { background-color: rgba(138, 180, 248, 0.4); box-shadow: 0 0 8px rgba(138, 180, 248, 0.5); }
         to { background-color: transparent; box-shadow: none; }
       }
-      .highlight-source {
-        animation: highlight-fade 2s ease-out;
-        border-radius: 4px; /* To make highlight look nice */
-      }
+      .highlight-source { animation: highlight-fade 2s ease-out; border-radius: 4px; }
       
       /* Styles for clickable source indices */
-      .source-index {
-        margin-left: 2px;
-        font-size: 0.75em;
-        vertical-align: super;
-        line-height: 1;
-      }
-      .source-index-button {
-        background: none;
-        border: none;
-        padding: 0 2px;
-        margin: 0;
-        color: #e2a32d;
-        cursor: pointer;
-        text-decoration: none;
-        font-weight: bold;
-        font-family: inherit;
-        font-size: inherit;
-      }
-      .source-index-button:hover {
-        text-decoration: underline;
-        color: #f5b132;
-      }
+      .source-index { margin-left: 2px; font-size: 0.75em; vertical-align: super; line-height: 1; }
+      .source-index-button { background: none; border: none; padding: 0 2px; margin: 0; color: var(--primary); cursor: pointer; text-decoration: none; font-weight: bold; font-family: inherit; font-size: inherit; }
+      .source-index-button:hover { text-decoration: underline; filter: brightness(1.2); }
+
+      /* New Utility Classes */
+      .bg-main { background-color: var(--background); }
+      .bg-content { background-color: var(--background-secondary); }
+      .bg-primary { background-color: var(--primary); }
+      .bg-border { background-color: var(--border); }
+      .bg-status-error { background-color: var(--status-error); }
+      .bg-status-error-20 { background-color: rgba(234, 67, 53, 0.2); }
+      .hover\\:bg-border-hover:hover { background-color: var(--text-light); }
+      .text-main { color: var(--text); }
+      .text-light { color: var(--text-light); }
+      .text-on-primary { color: var(--primary-text); }
+      .text-primary-accent { color: var(--primary); }
+      .text-status-success { color: var(--status-success); }
+      .text-status-warning { color: var(--status-warning); }
+      .text-status-error { color: var(--status-error); }
+      .border-ui { border-color: var(--border); }
+      .border-primary { border-color: var(--primary); }
+      .border-status-error { border-color: var(--status-error); }
+      .accent-primary { accent-color: var(--primary); }
+      .focus\\:border-primary:focus { border-color: var(--primary); }
+      .focus\\:ring-primary:focus { --tw-ring-color: var(--primary); }
+      .focus\\:ring-status-error:focus { --tw-ring-color: var(--status-error); }
+      .ring-offset-main { --tw-ring-offset-color: var(--background); }
+      .ring-offset-content { --tw-ring-offset-color: var(--background-secondary); }
+      .placeholder-light::placeholder { color: var(--text-light); opacity: 0.7; }
+
     </style>
 <script type="importmap">
 {
@@ -192,7 +167,7 @@
 }
 </script>
 </head>
-  <body class="bg-[#212934] text-gray-200">
+  <body class="bg-main text-main">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

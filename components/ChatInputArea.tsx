@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, KeyboardEvent } from 'react';
 
 interface ChatInputAreaProps {
@@ -45,7 +42,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
           onChange={(e) => setInputText(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder={isLoading ? "The model is responding..." : "Type your message or select a command..."}
-          className="flex-grow p-3 bg-[#333e48] border border-[#5c6f7e] rounded-lg shadow-sm focus:ring-[#e2a32d] focus:border-[#e2a32d] text-gray-200 placeholder-[#95aac0]/70 resize-none scrollbar-thin scrollbar-thumb-[#95aac0] scrollbar-track-[#333e48] disabled:bg-[#2b3541] disabled:cursor-not-allowed"
+          className="flex-grow p-3 bg-content border border-ui rounded-lg shadow-sm focus:ring-primary focus:border-primary text-main placeholder-light resize-none disabled:bg-content/80 disabled:cursor-not-allowed"
           rows={Math.min(3, Math.max(1, inputText.split('\n').length))} 
           disabled={isLoading}
           aria-label="Chat message input"
@@ -53,7 +50,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
         {canRestart && !isLoading && onRestartGeneration && (
           <button
             onClick={onRestartGeneration}
-            className="px-4 py-3 text-white font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] bg-[#e2a32d] hover:bg-[#f5b132] focus:ring-[#f5b132] disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center"
+            className="px-4 py-3 text-on-primary font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main bg-primary hover:brightness-110 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center"
             aria-label="Restart last generation"
             title="Restart last generation"
           >
@@ -65,10 +62,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
         <button
           onClick={isLoading ? onStopGeneration : handleSend}
           disabled={isLoading ? false : !inputText.trim()}
-          className={`px-4 py-3 text-white font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center
+          className={`px-4 py-3 text-white font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center
             ${isLoading
-              ? 'bg-red-600 hover:bg-red-500 focus:ring-red-500'
-              : 'bg-[#c36e26] hover:bg-[#d67e2a] focus:ring-[#d67e2a]'}`}
+              ? 'bg-status-error hover:brightness-110 focus:ring-status-error'
+              : 'bg-primary hover:brightness-110 focus:ring-primary text-on-primary'}`}
           aria-label={isLoading ? "Stop generation" : "Send message"}
         >
           {isLoading ? (
@@ -90,7 +87,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
         <button
           onClick={() => handleCommand('another round')}
           disabled={isLoading}
-          className="flex-1 px-3 py-2 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          className="flex-1 px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           aria-label="Send 'another round' command"
         >
           Another Round 🔁
@@ -98,7 +95,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
         <button
           onClick={() => handleCommand('read the room')}
           disabled={isLoading}
-          className="flex-1 px-3 py-2 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          className="flex-1 px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           aria-label="Send 'read the room' command"
         >
           Read the Room 🧐
@@ -106,7 +103,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ onSendMessage, isL
         <button
           onClick={() => handleCommand('web_search')}
           disabled={isLoading || !supportsWebSearch}
-          className="flex-1 px-3 py-2 text-sm bg-[#5c6f7e] hover:bg-[#708495] text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#212934] focus:ring-[#95aac0] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          className="flex-1 px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           title={supportsWebSearch ? "Search the web for up-to-date information" : "The selected model does not support web search."}
           aria-label="Send 'web search' command"
         >

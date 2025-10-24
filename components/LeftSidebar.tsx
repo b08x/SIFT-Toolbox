@@ -32,18 +32,18 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
     return (
         <aside
-            className={`flex-shrink-0 bg-[#333e48]/80 backdrop-blur-sm flex flex-col h-full border-r border-[#5c6f7e] transition-all duration-300 ease-in-out ${
+            className={`flex-shrink-0 bg-content/80 backdrop-blur-sm flex flex-col h-full border-r border-ui transition-all duration-300 ease-in-out ${
                 isOpen ? 'w-80 md:w-96' : 'w-0'
             }`}
         >
             <div className={`overflow-hidden flex-grow flex flex-col ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
                 {/* Header with nav and close button */}
-                <div className="p-4 flex justify-between items-center border-b border-[#5c6f7e] flex-shrink-0">
-                    <div className="flex items-center rounded-md bg-[#212934] p-1">
+                <div className="p-4 flex justify-between items-center border-b border-ui flex-shrink-0">
+                    <div className="flex items-center rounded-md bg-main p-1">
                         <button
                             onClick={() => onSwitchView('config')}
                             className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${
-                                activeView === 'config' ? 'bg-[#e2a32d] text-black' : 'text-gray-300 hover:bg-[#5c6f7e]'
+                                activeView === 'config' ? 'bg-primary text-on-primary' : 'text-main hover:bg-border'
                             }`}
                         >
                             Configuration
@@ -51,13 +51,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         <button
                             onClick={() => onSwitchView('about')}
                             className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${
-                                activeView === 'about' ? 'bg-[#e2a32d] text-black' : 'text-gray-300 hover:bg-[#5c6f7e]'
+                                activeView === 'about' ? 'bg-primary text-on-primary' : 'text-main hover:bg-border'
                             }`}
                         >
                             About
                         </button>
                     </div>
-                    <button onClick={onToggleClose} title="Collapse Sidebar" className="p-2 text-gray-400 hover:text-white hover:bg-gray-600 rounded-full">
+                    <button onClick={onToggleClose} title="Collapse Sidebar" className="p-2 text-light hover:text-main hover:bg-border rounded-full">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
@@ -65,7 +65,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </div>
 
                 {/* Content */}
-                <div className="overflow-y-auto flex-grow scrollbar-thin scrollbar-thumb-[#5c6f7e] scrollbar-track-[#212934]">
+                <div className="overflow-y-auto flex-grow">
                     {activeView === 'config' && <SessionConfigurationPanel {...configPanelProps} />}
                     {activeView === 'about' && <AboutContent />}
                 </div>

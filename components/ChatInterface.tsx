@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useRef, useEffect, forwardRef } from 'react';
 import { ChatMessage, SourceAssessment } from '../types';
 import { ChatMessageItem } from './ChatMessageItem';
@@ -27,9 +23,9 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ m
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full bg-[#212934] shadow-2xl rounded-xl overflow-hidden">
+    <div className="flex flex-col h-full bg-main shadow-2xl rounded-xl overflow-hidden">
       {/* Chat Messages Area */}
-      <div ref={ref} className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 scrollbar-thin scrollbar-thumb-[#5c6f7e] scrollbar-track-[#333e48]">
+      <div ref={ref} className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4">
         {messages.map((msg) => (
           <ChatMessageItem key={msg.id} message={msg} sourceAssessments={sourceAssessments} onSourceIndexClick={onSourceIndexClick} />
         ))}
@@ -37,7 +33,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ m
       </div>
 
       {/* Chat Input Area */}
-      <div className="shrink-0 p-3 sm:p-4 border-t border-[#5c6f7e] bg-[#212934]">
+      <div className="shrink-0 p-3 sm:p-4 border-t border-ui bg-main">
         <ChatInputArea 
             onSendMessage={onSendMessage}
             isLoading={isLoading}

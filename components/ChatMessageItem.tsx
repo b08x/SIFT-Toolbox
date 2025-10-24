@@ -21,19 +21,19 @@ const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     const isVideo = fileType === 'video' && file.base64Data;
 
     return (
-        <div className="relative group w-24 h-24 bg-[#212934] rounded-md overflow-hidden border border-[#5c6f7e] flex items-center justify-center">
+        <div className="relative group w-24 h-24 bg-main rounded-md overflow-hidden border border-ui flex items-center justify-center">
             {isImage && <img src={file.base64Data} alt={file.name} className="w-full h-full object-cover" />}
             {isVideo && <video src={file.base64Data} className="w-full h-full object-cover" />}
             {!isImage && !isVideo && (
                 <div className="flex flex-col items-center text-center p-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#95aac0]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                     </svg>
-                    <span className="text-xs text-[#95aac0] mt-1 break-all line-clamp-2">{file.name}</span>
+                    <span className="text-xs text-light mt-1 break-all line-clamp-2">{file.name}</span>
                 </div>
             )}
              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
-                <p className="text-white text-xs text-center line-clamp-3" title={file.name}>{file.name}</p>
+                <p className="text-main text-xs text-center line-clamp-3" title={file.name}>{file.name}</p>
             </div>
         </div>
     );
@@ -135,7 +135,7 @@ ${groundingSourcesText}
     if (isInitialSIFTReport && originalQueryReportType === ReportType.FULL_CHECK && !isLoading && !isError) {
       const parsedSections = parseSiftFullCheckReport(text);
       if (parsedSections.length > 0) {
-        return <TabbedReport sections={parsedSections} />;
+        return <TabbedReport sections={parsedSections} reasoning={message.reasoning} />;
       }
     }
     
@@ -176,7 +176,7 @@ ${groundingSourcesText}
     }
     
     if (isUser && (!uploadedFiles || uploadedFiles.length === 0)) {
-        return <p className="text-sm italic text-orange-200">(Empty message)</p>;
+        return <p className="text-sm italic text-status-warning">(Empty message)</p>;
     }
 
     return null; 
@@ -187,26 +187,26 @@ ${groundingSourcesText}
       <div
         className={`max-w-full w-full px-4 py-3 rounded-xl shadow ${
           isUser
-            ? 'bg-[#c36e26] text-white rounded-br-none ml-8 sm:ml-12'
-            : 'bg-[#333e48] text-gray-200 rounded-bl-none mr-8 sm:mr-12'
+            ? 'bg-primary text-on-primary rounded-br-none ml-8 sm:ml-12'
+            : 'bg-content text-main rounded-bl-none mr-8 sm:mr-12'
         } ${
-          isError ? 'border border-red-500 bg-red-900/40 text-red-200' : ''
+          isError ? 'border border-status-error bg-status-error-20 text-status-error' : ''
         }`}
       >
         {!isUser && (
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center">
               <span className="text-lg mr-2">{SIFT_ICON}</span>
-              <span className="font-semibold text-sm text-[#e2a32d]">
+              <span className="font-semibold text-sm text-primary-accent">
                 SIFT Assistant
-                {isFromCache && <span className="text-xs ml-1.5 text-[#e2a32d]" title="Loaded from local cache">⚡ Cached</span>}
+                {isFromCache && <span className="text-xs ml-1.5 text-primary-accent" title="Loaded from local cache">⚡ Cached</span>}
               </span>
             </div>
-            {modelId && <span className="text-xs ml-2 text-[#95aac0]/70">({modelId.split('/').pop()?.split(':').shift()})</span>}
+            {modelId && <span className="text-xs ml-2 text-light/70">({modelId.split('/').pop()?.split(':').shift()})</span>}
           </div>
         )}
         
-        {isUser && <p className="font-semibold mb-1 text-sm text-orange-100">You</p>}
+        {isUser && <p className="font-semibold mb-1 text-sm text-on-primary">You</p>}
 
         {isUser && uploadedFiles && uploadedFiles.length > 0 && (
             <div className="my-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -220,30 +220,30 @@ ${groundingSourcesText}
 
         {isLoading && (
           <div className="flex items-center mt-2">
-            <svg className="animate-spin h-4 w-4 mr-2 text-[#95aac0]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <svg className="animate-spin h-4 w-4 mr-2 text-light" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span className="text-xs text-[#95aac0]">SIFTing...</span>
+            <span className="text-xs text-light">SIFTing...</span>
           </div>
         )}
         {isError && !isLoading && (
-            <p className="text-xs text-red-400 mt-1">Failed to generate response.</p>
+            <p className="text-xs text-status-error mt-1">Failed to generate response.</p>
         )}
 
         {groundingSources && groundingSources.length > 0 && !isLoading && !isError && (
-          <div className={`mt-3 pt-2 border-t ${isUser ? 'border-orange-400/50' : 'border-[#5c6f7e]'}`}>
-            <h4 className={`text-xs font-semibold mb-1 ${isUser ? 'text-orange-100' : 'text-[#e2a32d]'}`}>Grounding Sources:</h4>
+          <div className={`mt-3 pt-2 border-t ${isUser ? 'border-black/20' : 'border-ui'}`}>
+            <h4 className={`text-xs font-semibold mb-1 ${isUser ? 'text-on-primary' : 'text-primary-accent'}`}>Grounding Sources:</h4>
             <ul className="list-disc list-inside space-y-0.5 text-xs">
               {groundingSources.map((source, index) => (
                 source.web && (
-                  <li key={index} className={isUser ? "text-orange-100" : 'text-[#95aac0]'}>
+                  <li key={index} className={isUser ? "text-on-primary" : 'text-light'}>
                     <a 
                       href={source.web.uri} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       title={source.web.title || source.web.uri}
-                      className={`${isUser ? "text-orange-200 hover:text-white" : "text-[#e2a32d] hover:text-[#f5b132]"} hover:underline`}
+                      className={`${isUser ? "text-on-primary hover:brightness-125" : "text-primary-accent hover:brightness-125"} hover:underline`}
                     >
                       {source.web.title || source.web.uri}
                     </a>
@@ -255,18 +255,18 @@ ${groundingSourcesText}
         )}
         
         {structuredData && !isLoading && !isError && (
-          <div className="mt-3 pt-2 border-t border-[#5c6f7e]">
-            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#3a5871] text-blue-200">
+          <div className="mt-3 pt-2 border-t border-ui">
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-border text-primary-accent">
               📊 Structured Data Attached
             </span>
           </div>
         )}
 
         {!isUser && isInitialSIFTReport && !isLoading && !isError && text.trim() && (
-          <div className="mt-3 pt-3 border-t border-[#5c6f7e]">
+          <div className="mt-3 pt-3 border-t border-ui">
             <button
               onClick={handleExportReport}
-              className="bg-[#5c6f7e] hover:bg-[#708495] text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#333e48] focus:ring-[#95aac0] inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md shadow-sm transition-colors"
+              className="bg-border hover:bg-border-hover text-main focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-content ring-text-light inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md shadow-sm transition-colors"
               aria-label="Export SIFT report as Markdown"
               title="Export SIFT report as Markdown"
             >
@@ -279,7 +279,7 @@ ${groundingSourcesText}
         )}
         
         <div className="flex justify-between items-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <p className={`text-xs ${isUser ? 'text-orange-200' : 'text-[#95aac0]/70'}`}>
+            <p className={`text-xs ${isUser ? 'text-on-primary' : 'text-light/70'}`}>
             {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
             {!isLoading && text.trim() && (
@@ -287,7 +287,7 @@ ${groundingSourcesText}
                     <button
                         onClick={() => setShowCopyMenu(prev => !prev)}
                         title="Copy options"
-                        className={`p-1 rounded ${isUser ? 'text-orange-200 hover:bg-orange-500/50' : 'text-[#95aac0] hover:bg-[#5c6f7e]'}`}
+                        className={`p-1 rounded ${isUser ? 'text-on-primary hover:bg-black/20' : 'text-light hover:bg-border'}`}
                         aria-haspopup="true"
                         aria-expanded={showCopyMenu}
                         aria-label="Copy message options"
@@ -297,12 +297,12 @@ ${groundingSourcesText}
                         </svg>
                     </button>
                     {showCopyMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-[#2b3541] border border-[#5c6f7e] rounded-md shadow-lg z-20 py-1">
-                            <button onClick={() => handleCopy('text')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-[#5c6f7e]">
+                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-content border border-ui rounded-md shadow-lg z-20 py-1">
+                            <button onClick={() => handleCopy('text')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-main hover:bg-border">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                                 Copy as Plain Text
                             </button>
-                            <button onClick={() => handleCopy('substack')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-[#5c6f7e]">
+                            <button onClick={() => handleCopy('substack')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-main hover:bg-border">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9.75 6.75h9.75c.621 0 1.125-.504 1.125-1.125V6.375c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v10.25c0 .621.504 1.125 1.125 1.125z" /></svg>
                                 Copy for Substack (HTML)
                             </button>
