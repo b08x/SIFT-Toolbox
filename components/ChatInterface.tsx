@@ -1,21 +1,29 @@
 import React, { useRef, useEffect, forwardRef } from 'react';
-import { ChatMessage, SourceAssessment } from '../types';
-import { ChatMessageItem } from './ChatMessageItem';
-import { ChatInputArea } from './ChatInputArea';
+import { ChatMessage, SourceAssessment } from '../types.ts';
+import { ChatMessageItem } from './ChatMessageItem.tsx';
+import { ChatInputArea } from './ChatInputArea.tsx';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
   sourceAssessments: SourceAssessment[];
-  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search') => void;
+  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note') => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void; // New prop for restarting
   onSourceIndexClick: (index: number) => void;
   canRestart?: boolean; // New prop to enable/disable restart button
   supportsWebSearch?: boolean;
+  llmStatusMessage: string | null;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  lastSaveTime: Date | null;
+  onSaveSession: () => void;
 }
 
-export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart, supportsWebSearch, onSourceIndexClick }, ref) => {
+export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ 
+    messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, 
+    onRestartGeneration, canRestart, supportsWebSearch, onSourceIndexClick,
+    llmStatusMessage, saveStatus, lastSaveTime, onSaveSession
+}, ref) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,6 +49,10 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ m
             onRestartGeneration={onRestartGeneration}
             canRestart={canRestart}
             supportsWebSearch={supportsWebSearch}
+            llmStatusMessage={llmStatusMessage}
+            saveStatus={saveStatus}
+            lastSaveTime={lastSaveTime}
+            onSaveSession={onSaveSession}
         />
       </div>
     </div>

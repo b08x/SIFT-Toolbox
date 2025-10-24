@@ -1,10 +1,11 @@
 
 
+
 import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ParsedReportSection } from '../types';
-import { ReasoningModal } from './ReasoningModal';
+import { ParsedReportSection } from '../types.ts';
+import { ReasoningModal } from './ReasoningModal.tsx';
 
 interface TabbedReportProps {
   sections: ParsedReportSection[];

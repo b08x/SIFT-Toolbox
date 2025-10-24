@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AgenticApiService } from '../services/agenticApiService.ts';
-import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter } from '../types';
-import { SliderInput } from './SliderInput'; 
-import { AVAILABLE_PROVIDERS_MODELS } from '../models.config';
-import { SIFT_CHAT_SYSTEM_PROMPT, SIFT_BIAS_FOCUS_PROMPT, SIFT_MISINFORMATION_FOCUS_PROMPT } from '../prompts';
+import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter } from '../types.ts';
+import { SliderInput } from './SliderInput.tsx'; 
+import { AVAILABLE_PROVIDERS_MODELS } from '../models.config.ts';
+import { SIFT_CHAT_SYSTEM_PROMPT, SIFT_BIAS_FOCUS_PROMPT, SIFT_MISINFORMATION_FOCUS_PROMPT } from '../prompts.ts';
 
 interface SettingsModalProps {
     isOpen: boolean;

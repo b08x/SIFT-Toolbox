@@ -67,7 +67,7 @@ export const AboutContent: React.FC = () => {
                     Quickly create a "Context Report" for a high-level overview or a "Community Note" for a concise, shareable summary to combat misinterpretation.
                 </FeatureCard>
                     <FeatureCard icon="💬" title="Interactive Investigation">
-                    Refine the analysis through a chat interface. Ask follow-up questions, command the model to dig deeper ("another round"), or analyze the surrounding discourse ("read the room").
+                        Refine the analysis through a chat interface. Ask follow-up questions, command the model to find more sources ("another round"), analyze public discourse ("read the room"), or trace a claim back to its original context ("trace claim").
                 </FeatureCard>
                 </div>
         </section>

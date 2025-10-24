@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { marked } from 'marked';
 
-import { ChatInterface } from './components/ChatInterface';
-import { ErrorAlert } from './components/ErrorAlert';
-import { RightSidebar } from './components/RightSidebar';
-import { SettingsModal } from './components/SettingsModal';
+import { ChatInterface } from './components/ChatInterface.tsx';
+import { ErrorAlert } from './components/ErrorAlert.tsx';
+import { ExportAndSourcesMenu } from './components/SessionToolsMenu.tsx';
+import { SettingsModal } from './components/SettingsModal.tsx';
 import { AgenticApiService } from './services/agenticApiService.ts';
-import { SourceAssessmentModal } from './components/SourceAssessmentModal';
-import { LeftSidebar } from './components/LeftSidebar';
+import { SourceAssessmentModal } from './components/SourceAssessmentModal.tsx';
+import { SessionConfigurationView } from './components/SessionConfigurationView.tsx';
+import { AboutContent } from './components/LandingPage.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
+import { generateCacheKey, getCachedSiftReport, setSiftReportCache, SIFT_PROMPT_VERSION } from './utils/cache.ts';
 
 
 import { 
@@ -25,11 +27,13 @@ import {
   StreamEvent,
   SourceAssessment,
   SavedSessionState,
-  LinkValidationStatus
-} from './types';
-import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts';
-import { AVAILABLE_PROVIDERS_MODELS } from './models.config';
-import { downloadMarkdown, downloadPdfWithBrowserPrint, downloadHtml } from './utils/download';
+  LinkValidationStatus,
+  CacheableQueryDetails,
+  CachedSiftReport
+} from './types.ts';
+import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts.ts';
+import { AVAILABLE_PROVIDERS_MODELS } from './models.config.ts';
+import { downloadMarkdown, downloadPdfWithBrowserPrint, downloadHtml } from './utils/download.ts';
 import { parseSourceAssessmentsFromMarkdown, correctRedirectLinksInMarkdown, checkLinkStatus, transformMarkdownForSubstack } from './utils/apiHelpers.ts';
 
 // Helper function to parse rating string into a comparable number
@@ -47,8 +51,9 @@ const AppInternal = (): React.ReactElement => {
   const [savedSessionExists, setSavedSessionExists] = useState<boolean>(false);
   
   // Layout State
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
-  const [sidebarView, setSidebarView] = useState<'config' | 'about'>('config');
+  const [mainView, setMainView] = useState<'config' | 'chat'>('config');
+  const [configTab, setConfigTab] = useState<'config' | 'about'>('config');
+  const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
 
   // Configuration State
   const [userApiKeys, setUserApiKeys] = useState<{ [key in AIProvider]?: string }>({});
@@ -87,11 +92,42 @@ const AppInternal = (): React.ReactElement => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sourceListContainerRef = useRef<HTMLDivElement>(null);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
+  const toolsMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   // Check for saved session on initial load
   useEffect(() => {
     setSavedSessionExists(SessionManager.hasSavedSession());
   }, []);
+  
+  const isApiKeyValid = useMemo(() => {
+      if (enableGeminiPreprocessing && selectedProviderKey !== AIProvider.GOOGLE_GEMINI) {
+          return apiKeyValidation[selectedProviderKey] === 'valid' && apiKeyValidation[AIProvider.GOOGLE_GEMINI] === 'valid';
+      }
+      return apiKeyValidation[selectedProviderKey] === 'valid';
+  }, [apiKeyValidation, selectedProviderKey, enableGeminiPreprocessing]);
+
+  // Effect to auto-open settings modal if key is invalid on config screen
+  useEffect(() => {
+      if (mainView === 'config' && !isApiKeyValid && chatMessages.length === 0) {
+          setIsSettingsModalOpen(true);
+      }
+  }, [isApiKeyValid, mainView, chatMessages.length]);
+
+  // Effect to handle clicks outside of the tools menu to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (
+            toolsMenuRef.current && !toolsMenuRef.current.contains(event.target as Node) &&
+            toolsMenuButtonRef.current && !toolsMenuButtonRef.current.contains(event.target as Node)
+        ) {
+            setIsToolsMenuOpen(false);
+        }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [toolsMenuRef, toolsMenuButtonRef]);
+
 
   const checkSourceLinks = useCallback(async (assessmentsToCheck: SourceAssessment[]) => {
     if (assessmentsToCheck.length === 0) return;
@@ -209,7 +245,7 @@ const AppInternal = (): React.ReactElement => {
           setSessionUrls(session.currentSiftQueryDetails.sessionUrls.join('\n'));
       }
       
-      setIsSidebarOpen(false); // Close sidebar to focus on chat
+      setMainView('chat'); // Go directly to chat on restore
       setLastSaveTime(new Date()); // Indicate that what is loaded is "saved" as of now.
       setSaveStatus('saved');
     } else {
@@ -247,9 +283,8 @@ const AppInternal = (): React.ReactElement => {
     setSaveStatus('idle');
     setLastSaveTime(null);
 
-    // Reset sidebar to default config view
-    setIsSidebarOpen(true);
-    setSidebarView('config');
+    setMainView('config');
+    setConfigTab('config');
   };
 
   useEffect(() => {
@@ -335,6 +370,17 @@ const AppInternal = (): React.ReactElement => {
           return; // Stop processing on error
         case 'final':
           flushUiBuffer(); // Final flush to capture all remaining text.
+
+          if (event.cacheKey && event.fullText) {
+              const reportToCache: CachedSiftReport = {
+                  text: event.fullText,
+                  groundingSources: event.groundingSources,
+                  modelId: event.modelId,
+                  originalQueryReportType: event.originalQueryReportType || ReportType.FULL_CHECK,
+                  cachedAt: Date.now()
+              };
+              setSiftReportCache(event.cacheKey, reportToCache);
+          }
 
           // Use the locally accumulated text which has been stripped of the <think> tags.
           // This ensures the main message body does not contain the reasoning block.
@@ -430,7 +476,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
     
     setIsLoading(true); 
-    setIsSidebarOpen(false); // Auto-close sidebar on session start
+    setMainView('chat');
 
     const userMessage: ChatMessage = {
       id: uuidv4(),
@@ -450,6 +496,47 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     });
     setOriginalQueryForRestart(originalQuery); 
     setSourceAssessments([]); // Clear assessments for new session
+
+    // Caching logic
+    const cacheableDetails: CacheableQueryDetails = {
+        text: originalQuery.text,
+        files: sessionFiles.map(f => ({ base64Data: f.base64Data, name: f.name })),
+        reportType: originalQuery.reportType,
+        provider: selectedProviderKey,
+        modelId: selectedModelId,
+        modelConfigParams,
+        siftPromptVersion: SIFT_PROMPT_VERSION,
+    };
+    const cacheKey = await generateCacheKey(cacheableDetails);
+    const cachedReport = getCachedSiftReport(cacheKey);
+
+    if (cachedReport) {
+        setLlmStatusMessage("Loaded report from local cache.");
+        const aiMessage: ChatMessage = {
+            id: uuidv4(),
+            sender: 'ai',
+            text: cachedReport.text,
+            timestamp: new Date(),
+            isLoading: false,
+            groundingSources: cachedReport.groundingSources,
+            isInitialSIFTReport: true,
+            originalQueryReportType: cachedReport.originalQueryReportType,
+            modelId: cachedReport.modelId,
+            isFromCache: true,
+        };
+        setChatMessages(prev => [...prev, aiMessage]);
+        
+        const assessmentsFromCache = parseSourceAssessmentsFromMarkdown(cachedReport.text)
+            .map((a, index) => ({ ...a, index: index + 1, linkValidationStatus: 'unchecked' as const }));
+        setSourceAssessments(assessmentsFromCache);
+        if (assessmentsFromCache.length > 0) {
+            checkSourceLinks(assessmentsFromCache);
+        }
+        
+        setIsLoading(false);
+        return;
+    }
+    // End of cache check
 
     abortControllerRef.current = new AbortController();
     const aiMessageId = uuidv4();
@@ -471,6 +558,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             modelConfigParams: modelConfigParams,
             signal: abortControllerRef.current.signal,
             customSystemPrompt,
+            cacheKey, // Pass cache key to the service
         });
         await processStreamEvents(stream, aiMessageId);
     } catch (e) {
@@ -485,7 +573,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
   };
 
 
-  const handleSendChatMessage = async (messageText: string, command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search') => {
+  const handleSendChatMessage = async (messageText: string, command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search' | 'trace_claim') => {
     if (isLoading) return;
     setError(null);
     setIsLoading(true);
@@ -698,64 +786,37 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
   };
 
   const handleSourceIndexClick = (index: number) => {
-    const container = sourceListContainerRef.current;
-    if (!container) return;
+    setIsToolsMenuOpen(true);
 
-    const element = container.querySelector(`#source-item-${index}`);
-    if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('highlight-source');
-        setTimeout(() => {
-            element.classList.remove('highlight-source');
-        }, 2000); // Highlight for 2 seconds
-    }
+    // Delay scroll to allow menu to open and render
+    setTimeout(() => {
+        const container = sourceListContainerRef.current;
+        if (!container) return;
+
+        const element = container.querySelector(`#source-item-${index}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('highlight-source');
+            setTimeout(() => {
+                element.classList.remove('highlight-source');
+            }, 2000); // Highlight for 2 seconds
+        }
+    }, 100);
   };
 
   const selectedModelConfig = getSelectedModelConfig();
 
   return (
-    <div className="flex h-screen max-h-screen bg-main text-main">
-      <LeftSidebar
-        isOpen={isSidebarOpen}
-        onToggleClose={() => setIsSidebarOpen(false)}
-        activeView={sidebarView}
-        onSwitchView={setSidebarView}
-        apiKeyValidation={apiKeyValidation}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
-        sessionTopic={sessionTopic}
-        setSessionTopic={setSessionTopic}
-        sessionContext={sessionContext}
-        setSessionContext={setSessionContext}
-        sessionFiles={sessionFiles}
-        setSessionFiles={setSessionFiles}
-        sessionUrls={sessionUrls}
-        setSessionUrls={setSessionUrls}
-        onStartSession={handleStartSession}
-        selectedProviderKey={selectedProviderKey}
-        enableGeminiPreprocessing={enableGeminiPreprocessing}
-        onRestoreSession={handleRestoreSession}
-        showRestoreButton={savedSessionExists && chatMessages.length === 0}
-      />
-      <main className={`flex-grow flex flex-col p-3 md:p-6 overflow-hidden h-full`}>
+    <div className="bg-main text-main">
+      <main className="flex flex-col min-h-screen p-3 md:p-6">
           <header className="mb-4 flex-shrink-0 flex justify-between items-center">
             <div className="flex items-center space-x-3">
-              {!isSidebarOpen && (
-                <button
-                  onClick={() => setIsSidebarOpen(true)}
-                  className="p-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-border transition-colors"
-                  title="Open Sidebar"
-                >
-                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
-                  </svg>
-                </button>
-              )}
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold text-primary-accent flex items-center">
                     <span className="mr-2 text-3xl md:text-4xl">🔍</span>
                     SIFT Toolbox
                 </h1>
-                {chatMessages.length > 0 && (
+                {mainView === 'chat' && (
                   <p className="text-sm text-light">
                       Model: <span className="font-semibold text-primary-accent">{getSelectedModelConfig()?.name || 'N/A'}</span>
                   </p>
@@ -773,74 +834,119 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
               </button>
-              <button
-                  onClick={handleNewSession}
-                  className="px-4 py-2 text-sm bg-primary hover:brightness-110 text-on-primary font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary transition-all"
-                  title="End this session and start a new one"
-              >
-                  New Session
-              </button>
+              {mainView === 'chat' && (
+                <>
+                  <button
+                      onClick={handleNewSession}
+                      className="px-4 py-2 text-sm bg-primary hover:brightness-110 text-on-primary font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary transition-all"
+                      title="End this session and start a new one"
+                  >
+                      New Session
+                  </button>
+                  <div className="relative">
+                    <button
+                        ref={toolsMenuButtonRef}
+                        onClick={() => setIsToolsMenuOpen(prev => !prev)}
+                        className="px-4 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary transition-all flex items-center"
+                        title="Open Sources & Export Menu"
+                        aria-haspopup="true"
+                        aria-expanded={isToolsMenuOpen}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-1.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Export
+                    </button>
+                    {isToolsMenuOpen && (
+                        <ExportAndSourcesMenu
+                            ref={toolsMenuRef}
+                            isGeneratingReport={isGeneratingReport}
+                            onExportReport={handleExportReport}
+                            onExportSources={handleExportSources}
+                            sourceAssessments={sourceAssessments}
+                            onSelectSource={setSelectedSourceForModal}
+                            sourceListContainerRef={sourceListContainerRef}
+                            onClose={() => setIsToolsMenuOpen(false)}
+                        />
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </header>
           
           {error && <ErrorAlert message={error} />}
 
-          <div className="flex-grow flex min-h-0"> 
-            {chatMessages.length === 0 ? (
-                <div className="flex-grow flex flex-col items-center justify-center text-center p-4">
-                  <span className="text-6xl mb-4">👋</span>
-                  <h2 className="text-2xl font-bold text-main">Welcome to the SIFT Toolbox</h2>
-                  <p className="text-light mt-2 max-w-md">
-                    Use the sidebar on the left to configure your session topic, provide context, and upload files to begin your investigation.
-                  </p>
-                  <button 
-                    onClick={() => { setIsSidebarOpen(true); setSidebarView('config'); }}
-                    className="mt-6 px-5 py-2.5 bg-primary hover:brightness-110 text-on-primary font-bold text-base rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-primary/50"
-                  >
-                    Open Configuration
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex-grow min-w-0"> 
-                    <ChatInterface
-                      ref={chatContainerRef}
-                      messages={chatMessages}
-                      sourceAssessments={sourceAssessments}
-                      onSendMessage={handleSendChatMessage}
-                      isLoading={isLoading}
-                      onStopGeneration={handleStopGeneration}
-                      onRestartGeneration={handleRestartGeneration}
-                      onSourceIndexClick={handleSourceIndexClick}
-                      canRestart={originalQueryForRestart !== null && !isLoading}
-                      supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
-                    />
+          <div className="flex-grow flex flex-col min-h-0"> 
+            {mainView === 'config' && (
+              <div className="flex-grow flex flex-col min-h-0">
+                  <div className="flex border-b border-ui mb-4 flex-shrink-0">
+                      <button 
+                          onClick={() => setConfigTab('config')}
+                          className={`px-4 py-2 text-sm font-semibold rounded-t-md transition-colors border-b-2 ${
+                              configTab === 'config' ? 'border-primary text-primary-accent' : 'border-transparent text-light hover:text-main'
+                          }`}
+                      >
+                          Session Configuration
+                      </button>
+                      <button 
+                          onClick={() => setConfigTab('about')}
+                          className={`px-4 py-2 text-sm font-semibold rounded-t-md transition-colors border-b-2 ${
+                              configTab === 'about' ? 'border-primary text-primary-accent' : 'border-transparent text-light hover:text-main'
+                          }`}
+                      >
+                          About SIFT Toolbox
+                      </button>
                   </div>
-                </>
-              )}
+                  <div className="flex-grow">
+                    {configTab === 'config' && (
+                      <SessionConfigurationView 
+                          isApiKeyValid={isApiKeyValid}
+                          onOpenSettings={() => setIsSettingsModalOpen(true)}
+                          sessionTopic={sessionTopic}
+                          setSessionTopic={setSessionTopic}
+                          sessionContext={sessionContext}
+                          setSessionContext={setSessionContext}
+                          sessionFiles={sessionFiles}
+                          setSessionFiles={setSessionFiles}
+                          sessionUrls={sessionUrls}
+                          setSessionUrls={setSessionUrls}
+                          onStartSession={handleStartSession}
+                          onRestoreSession={handleRestoreSession}
+                          showRestoreButton={savedSessionExists && chatMessages.length === 0}
+                      />
+                    )}
+                    {configTab === 'about' && <AboutContent />}
+                  </div>
+              </div>
+            )}
+            {mainView === 'chat' && (
+                <div className="flex-grow min-w-0 h-[75vh]"> 
+                  <ChatInterface
+                    ref={chatContainerRef}
+                    messages={chatMessages}
+                    sourceAssessments={sourceAssessments}
+                    onSendMessage={handleSendChatMessage}
+                    isLoading={isLoading || isGeneratingReport}
+                    onStopGeneration={handleStopGeneration}
+                    onRestartGeneration={handleRestartGeneration}
+                    onSourceIndexClick={handleSourceIndexClick}
+                    canRestart={originalQueryForRestart !== null && !isLoading}
+                    supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
+                    llmStatusMessage={llmStatusMessage}
+                    saveStatus={saveStatus}
+                    lastSaveTime={lastSaveTime}
+                    onSaveSession={handleManualSave}
+                  />
+                </div>
+            )}
           </div>
 
           <footer className="mt-auto pt-3 text-center text-xs text-light/70 flex-shrink-0">
             <p>Reports compiled and contextualized using Language Models. | SIFT Methodology.</p>
           </footer>
       </main>
-      {chatMessages.length > 0 && (
-        <RightSidebar
-          llmStatusMessage={llmStatusMessage}
-          onGenerateContextReport={() => handleSendChatMessage("ACTION: Generate Context Report", 'generate_context_report')}
-          onGenerateCommunityNote={() => handleSendChatMessage("ACTION: Generate Community Note", 'generate_community_note')}
-          isLoading={isLoading}
-          isGeneratingReport={isGeneratingReport}
-          onExportReport={handleExportReport}
-          onExportSources={handleExportSources}
-          sourceAssessments={sourceAssessments}
-          onSelectSource={setSelectedSourceForModal}
-          onSaveSession={handleManualSave}
-          saveStatus={saveStatus}
-          lastSaveTime={lastSaveTime}
-          sourceListContainerRef={sourceListContainerRef}
-        />
-      )}
+
       {isSettingsModalOpen && (
         <SettingsModal
             isOpen={isSettingsModalOpen}

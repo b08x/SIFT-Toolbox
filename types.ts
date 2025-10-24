@@ -136,8 +136,7 @@ export type ApiKeyValidationStates = {
 // For Caching
 export interface CacheableQueryDetails {
   text?: string;
-  imageBase64?: string | null; // Image data for hashing
-  imageMimeType?: string | null;
+  files?: Array<{ base64Data: string; name: string }>;
   reportType: ReportType;
   provider: AIProvider;
   modelId: string;

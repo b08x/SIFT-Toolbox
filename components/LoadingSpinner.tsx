@@ -1,5 +1,5 @@
 import React from 'react';
-import { ReportType } from '../types'; // Import ReportType
+import { ReportType } from '../types.ts'; // Import ReportType
 
 interface LoadingSpinnerProps {
   reportType: ReportType;

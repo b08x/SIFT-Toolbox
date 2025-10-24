@@ -1,4 +1,8 @@
 
+
+
+
+
 import { GoogleGenAI, Part, Content } from "@google/genai";
 import OpenAI from 'openai';
 import { generateText, streamText } from 'ai';
@@ -13,10 +17,10 @@ import {
     ChatMessage,
     ReportType,
     UploadedFile,
-} from '../types';
-import { AVAILABLE_PROVIDERS_MODELS } from '../models.config';
-import { getSystemPromptForSelectedModel, getTruncatedHistoryForApi } from '../utils/apiHelpers';
-import { constructFullPrompt } from "../prompts";
+} from '../types.ts';
+import { AVAILABLE_PROVIDERS_MODELS } from '../models.config.ts';
+import { getSystemPromptForSelectedModel, getTruncatedHistoryForApi } from '../utils/apiHelpers.ts';
+import { constructFullPrompt } from "../prompts.ts";
 
 export class AgenticApiService {
     private geminiAi: GoogleGenAI | null = null;
@@ -235,7 +239,7 @@ export class AgenticApiService {
         signal: AbortSignal;
         systemPromptOverride?: string;
         originalQueryForRestart?: OriginalQueryInfo | null;
-        command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search';
+        command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search' | 'trace_claim';
         cacheKey?: string;
         customSystemPrompt?: string;
     }): AsyncGenerator<StreamEvent> {
@@ -310,6 +314,25 @@ export class AgenticApiService {
                  } else if (command === 'another round' || command === 'read the room') {
                     const originalQueryContext = originalQueryForRestart?.text ? `The original query was about: "${originalQueryForRestart.text.substring(0, 150)}..."` : "The original query involved uploaded files.";
                     promptForThisTurn = `Based on the previous SIFT analysis and our conversation, please execute the '${command}' command. ${originalQueryContext}. Refer to the full conversation history to find additional sources or summarize opinion as specified in the system prompt instructions.`;
+                 } else if (command === 'trace_claim') {
+                    const userClaim = query as string;
+                    // If the input text is just the command itself, it means the user clicked the button with an empty input field.
+                    const isInputJustCommand = userClaim.trim().toLowerCase() === 'trace claim';
+                    const claimToTrace = !isInputJustCommand && userClaim.trim() ? `the user's specified claim: "${userClaim}"` : "the central claim of this investigation";
+
+                    const originalQueryContext = originalQueryForRestart?.text ? `The original query was about: "${originalQueryForRestart.text.substring(0, 150)}..."` : "The original query involved uploaded files.";
+                    
+                    promptForThisTurn = `Based on the entire conversation history and all sources gathered so far, please execute a 'trace' action. Your goal is to trace the origin and context of ${claimToTrace}.
+
+To do this, you MUST:
+1.  **Examine All Sources:** Scrutinize the sources listed in the 'Source Reliability' panel and any others mentioned in our chat.
+2.  **Identify Original Context:** Find the earliest available version of the claim, quote, or media. Where and when did it first appear?
+3.  **Track Modifications:** Analyze how the claim may have been altered, cropped, or re-contextualized as it spread.
+4.  **Provide a Narrative:** Synthesize your findings into a clear narrative explaining the provenance and evolution of the claim.
+5.  **Cite Evidence:** Directly reference the sources that support your trace.
+
+${originalQueryContext}
+If the user provided a specific claim in the input box, focus your trace on that. Otherwise, trace the main topic of our session.`;
                  } else if (command === 'web_search') {
                     promptForThisTurn = `Please perform a web search to provide the most current and relevant information for the following query. Summarize your findings and cite your sources. User Query: "${query as string}"`;
                  }

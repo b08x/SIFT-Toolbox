@@ -1,4 +1,4 @@
-import { ChatMessage, SavedSessionState, UploadedFile } from '../types';
+import { ChatMessage, SavedSessionState, UploadedFile } from '../types.ts';
 
 const SESSION_STORAGE_KEY = 'sift-toolbox-session';
 

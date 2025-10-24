@@ -1,6 +1,6 @@
-import { CacheableQueryDetails, CachedSiftReport } from '../types';
+import { CacheableQueryDetails, CachedSiftReport, UploadedFile } from '../types.ts';
 
-const SIFT_PROMPT_VERSION = "1.1"; // Increment this if SIFT_FULL_CHECK_PROMPT changes significantly
+export const SIFT_PROMPT_VERSION = "1.2"; // Increment this if SIFT prompts change significantly
 
 // Helper function to convert string to ArrayBuffer
 function str2ab(str: string): ArrayBuffer {
@@ -27,7 +27,7 @@ async function hashString(input: string): Promise<string> {
 export async function generateCacheKey(details: CacheableQueryDetails): Promise<string> {
   const {
     text,
-    imageBase64,
+    files,
     reportType,
     provider,
     modelId,
@@ -35,7 +35,12 @@ export async function generateCacheKey(details: CacheableQueryDetails): Promise<
   } = details;
 
   const textHash = await hashString(text || '');
-  const imageHash = imageBase64 ? await hashString(imageBase64) : '';
+  
+  const filesToHash = files || [];
+  const fileHashes = await Promise.all(
+    filesToHash.map(file => hashString(file.base64Data + file.name))
+  );
+  const combinedFileHash = await hashString(fileHashes.sort().join('|'));
   
   // Sort modelConfigParams by key to ensure consistent key generation
   const sortedConfigKeys = Object.keys(modelConfigParams).sort();
@@ -45,13 +50,14 @@ export async function generateCacheKey(details: CacheableQueryDetails): Promise<
   const keyParts = [
     `v:${SIFT_PROMPT_VERSION}`,
     `txt:${textHash}`,
-    `img:${imageHash}`,
+    `files:${combinedFileHash}`,
     `rt:${reportType}`,
     `pvd:${provider}`,
     `mdl:${modelId}`,
     `cfg:${configHash}`,
   ];
-  return `siftCache-${keyParts.join('-')}`;
+  const fullKey = `siftCache-${keyParts.join('-')}`;
+  return `siftCache-${await hashString(fullKey)}`; // Hash the whole key to keep it a reasonable length
 }
 
 export function getCachedSiftReport(key: string): CachedSiftReport | null {

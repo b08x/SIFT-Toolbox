@@ -1,5 +1,5 @@
 import React from 'react';
-import { SourceAssessment, LinkValidationStatus } from '../types';
+import { SourceAssessment, LinkValidationStatus } from '../types.ts';
 
 interface SourceAssessmentModalProps {
   source: SourceAssessment;
@@ -26,7 +26,6 @@ const LinkStatusIcon: React.FC<{ status: LinkValidationStatus | undefined }> = (
     switch (status) {
         case 'checking':
             return (
-                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
                 <svg className="animate-spin h-5 w-5 text-light flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <title>Checking link...</title>
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -35,7 +34,6 @@ const LinkStatusIcon: React.FC<{ status: LinkValidationStatus | undefined }> = (
             );
         case 'valid':
             return (
-                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-status-success flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <title>Link appears to be valid.</title>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -43,7 +41,6 @@ const LinkStatusIcon: React.FC<{ status: LinkValidationStatus | undefined }> = (
             );
         case 'invalid':
             return (
-                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-status-error flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <title>Link appears to be broken or inaccessible.</title>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -51,7 +48,6 @@ const LinkStatusIcon: React.FC<{ status: LinkValidationStatus | undefined }> = (
             );
         case 'error_checking':
             return (
-                // FIX: Replaced invalid `title` prop with a nested `<title>` element.
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-status-warning flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <title>Could not verify link status (may be due to CORS restrictions).</title>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

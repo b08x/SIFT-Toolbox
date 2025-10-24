@@ -2,11 +2,11 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { marked } from 'marked';
-import { ChatMessage, GroundingChunk, ReportType, ParsedReportSection, UploadedFile, SourceAssessment } from '../types';
-import { SIFT_ICON } from '../constants'; 
-import { downloadMarkdown } from '../utils/download';
+import { ChatMessage, GroundingChunk, ReportType, ParsedReportSection, UploadedFile, SourceAssessment } from '../types.ts';
+import { SIFT_ICON } from '../constants.ts'; 
+import { downloadMarkdown } from '../utils/download.ts';
 import { parseSiftFullCheckReport, transformMarkdownForSubstack } from '../utils/apiHelpers.ts';
-import { TabbedReport } from './TabbedReport';
+import { TabbedReport } from './TabbedReport.tsx';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -14,7 +14,6 @@ interface ChatMessageItemProps {
   onSourceIndexClick: (index: number) => void;
 }
 
-// FIX: Changed to React.FC to correctly handle props like `key` when used in a list.
 const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     const fileType = file.type.split('/')[0];
     const isImage = fileType === 'image' && file.base64Data;
@@ -39,7 +38,6 @@ const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     );
 };
 
-// FIX: Changed component to be of type React.FC to ensure TypeScript correctly handles it as a React component, resolving issues with the `key` prop.
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments, onSourceIndexClick }) => {
   const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData } = message;
   const isUser = sender === 'user';
@@ -130,7 +128,6 @@ ${groundingSourcesText}
   };
 
 
-  // FIX: Changed return type from JSX.Element to React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
   const renderContent = (): React.ReactElement | null => {
     if (isInitialSIFTReport && originalQueryReportType === ReportType.FULL_CHECK && !isLoading && !isError) {
       const parsedSections = parseSiftFullCheckReport(text);

@@ -1,6 +1,4 @@
-
-
-import { ReportType } from './types';
+import { ReportType } from './types.ts';
 
 // Note: These prompts are extensive and directly transcribed/adapted from the user-provided OCR.
 // They instruct the Gemini model on how to perform SIFT analysis and structure its response.

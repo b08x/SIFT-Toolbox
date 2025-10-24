@@ -1,4 +1,4 @@
-import { AIProvider, AIModelConfig } from './types';
+import { AIProvider, AIModelConfig } from './types.ts';
 
 const standardGeminiParameters: AIModelConfig['parameters'] = [
   { 
