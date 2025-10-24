@@ -17,8 +17,8 @@ interface ChatMessageItemProps {
 // FIX: Changed to React.FC to correctly handle props like `key` when used in a list.
 const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     const fileType = file.type.split('/')[0];
-    const isImage = fileType === 'image';
-    const isVideo = fileType === 'video';
+    const isImage = fileType === 'image' && file.base64Data;
+    const isVideo = fileType === 'video' && file.base64Data;
 
     return (
         <div className="relative group w-24 h-24 bg-[#212934] rounded-md overflow-hidden border border-[#5c6f7e] flex items-center justify-center">
