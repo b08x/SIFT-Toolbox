@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { AgenticApiService } from '../services/agenticApiService.ts';
 import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter } from '../types.ts';
 import { SliderInput } from './SliderInput.tsx'; 
-import { AVAILABLE_PROVIDERS_MODELS } from '../models.config.ts';
 import { SIFT_CHAT_SYSTEM_PROMPT, SIFT_BIAS_FOCUS_PROMPT, SIFT_MISINFORMATION_FOCUS_PROMPT, SIFT_DEEP_BACKGROUND_PROMPT } from '../prompts.ts';
 
 interface SettingsModalProps {
@@ -17,6 +16,7 @@ interface SettingsModalProps {
     enableGeminiPreprocessing: boolean;
     setEnableGeminiPreprocessing: (enabled: boolean) => void;
     availableModels: AIModelConfig[];
+    onModelsUpdate: (provider: AIProvider, newModels: AIModelConfig[]) => void;
     selectedModelId: string;
     onSelectModelId: (modelId: string) => void;
     modelConfigParams: ConfigurableParams;
@@ -25,7 +25,7 @@ interface SettingsModalProps {
     setCustomSystemPrompt: (prompt: string) => void;
 }
 
-const uniqueProviders = Array.from(new Set(AVAILABLE_PROVIDERS_MODELS.map(m => m.provider)));
+const uniqueProviders = Array.from(new Set(Object.values(AIProvider)));
 
 const promptPresets = [
     { name: 'Default SIFT', prompt: SIFT_CHAT_SYSTEM_PROMPT },
@@ -38,7 +38,7 @@ const promptPresets = [
 export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen, onClose, userApiKeys, setUserApiKeys, apiKeyValidation, setApiKeyValidation,
     selectedProviderKey, setSelectedProviderKey, enableGeminiPreprocessing, setEnableGeminiPreprocessing,
-    availableModels, selectedModelId, onSelectModelId, modelConfigParams, onModelConfigParamChange,
+    availableModels, onModelsUpdate, selectedModelId, onSelectModelId, modelConfigParams, onModelConfigParamChange,
     customSystemPrompt, setCustomSystemPrompt
 }) => {
     const [isValidationLoading, setIsValidationLoading] = useState<Partial<Record<AIProvider, boolean>>>({});
@@ -75,6 +75,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const firstModel = availableModels.find(m => m.provider === newProvider);
         if (firstModel) {
             onSelectModelId(firstModel.id);
+        } else {
+            onSelectModelId(''); // Clear selection if no models are available for the new provider
         }
     };
 
@@ -93,11 +95,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setIsValidationLoading(prev => ({ ...prev, [provider]: true }));
         setApiKeyValidation(prev => ({ ...prev, [provider]: 'pending' }));
         const { isValid, error } = await AgenticApiService.validateApiKey(provider, key);
+        
         setApiKeyValidation(prev => ({ ...prev, [provider]: isValid ? 'valid' : 'invalid' }));
-        setIsValidationLoading(prev => ({ ...prev, [provider]: false }));
-        if (!isValid) {
+
+        if (isValid) {
+            try {
+                const newModels = await AgenticApiService.fetchAvailableModels(provider, key);
+                if (newModels.length > 0) {
+                    onModelsUpdate(provider, newModels);
+                } else {
+                    console.warn(`No models returned for provider ${provider}. Keeping existing list.`);
+                }
+            } catch (fetchError) {
+                console.error(`Failed to fetch models for ${provider}:`, fetchError);
+                alert(`API key is valid, but failed to fetch the model list for ${provider}. The application will use the default list.`);
+            }
+        } else {
             alert(`API Key validation failed for ${provider}: ${error || 'Please check the key and try again.'}`);
         }
+        setIsValidationLoading(prev => ({ ...prev, [provider]: false }));
     };
 
     const getValidationStatusUI = (provider: AIProvider) => {
@@ -228,7 +244,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <div>
                                 <label htmlFor="model-select-modal" className="block text-sm font-medium text-main mb-1">Model</label>
                                 <select id="model-select-modal" value={selectedModelId} onChange={(e) => onSelectModelId(e.target.value)} className="w-full p-2 bg-main border border-ui rounded-md shadow-sm">
-                                    {modelsForSelectedProvider.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                    {modelsForSelectedProvider.length > 0 ? (
+                                        modelsForSelectedProvider.map(m => <option key={m.id} value={m.id}>{m.name}</option>)
+                                    ) : (
+                                        <option disabled>No models loaded. Please validate API key.</option>
+                                    )}
                                 </select>
                             </div>
                             {selectedModelConfig && selectedModelConfig.parameters.length > 0 && (

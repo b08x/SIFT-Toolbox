@@ -1,8 +1,3 @@
-
-
-
-
-
 import { GoogleGenAI, Part, Content } from "@google/genai";
 import OpenAI from 'openai';
 import { generateText, streamText } from 'ai';
@@ -18,7 +13,7 @@ import {
     ReportType,
     UploadedFile,
 } from '../types.ts';
-import { AVAILABLE_PROVIDERS_MODELS } from '../models.config.ts';
+import { INITIAL_MODELS_CONFIG, standardOpenAIParameters, standardGeminiParameters } from '../models.config.ts';
 import { getSystemPromptForSelectedModel, getTruncatedHistoryForApi } from '../utils/apiHelpers.ts';
 import { constructFullPrompt } from "../prompts.ts";
 
@@ -33,13 +28,20 @@ export class AgenticApiService {
         modelId: string,
         private userApiKeys: { [key in AIProvider]?: string },
         private enableGeminiPreprocessing: boolean,
+        availableModels: AIModelConfig[], // Now requires the dynamic list
     ) {
         this.provider = provider;
-        const modelConfig = AVAILABLE_PROVIDERS_MODELS.find(m => m.id === modelId && m.provider === provider);
+        const modelConfig = availableModels.find(m => m.id === modelId && m.provider === provider);
         if (!modelConfig) {
-            throw new Error(`Model configuration for ${modelId} with provider ${provider} not found.`);
+            // Fallback to initial config if not found in dynamic list (e.g., during initialization)
+            const fallbackModel = INITIAL_MODELS_CONFIG.find(m => m.id === modelId && m.provider === provider);
+            if (!fallbackModel) {
+                throw new Error(`Model configuration for ${modelId} with provider ${provider} not found.`);
+            }
+            this.modelConfig = fallbackModel;
+        } else {
+            this.modelConfig = modelConfig;
         }
-        this.modelConfig = modelConfig;
         this.initializeClients();
     }
 
@@ -126,6 +128,69 @@ export class AgenticApiService {
             }
             return { isValid: false, error: finalErrorText };
         }
+    }
+
+     public static async fetchAvailableModels(provider: AIProvider, key: string): Promise<AIModelConfig[]> {
+        try {
+            if (provider === AIProvider.GOOGLE_GEMINI) {
+                // Gemini does not have a model listing API for API keys, return the curated list.
+                return INITIAL_MODELS_CONFIG.filter(m => m.provider === AIProvider.GOOGLE_GEMINI);
+            }
+            if (provider === AIProvider.OPENAI) {
+                const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
+                const response = await openai.models.list();
+                return response.data
+                    .filter(model => model.id.startsWith('gpt-'))
+                    .sort((a, b) => b.id.localeCompare(a.id))
+                    .map(model => ({
+                        id: model.id,
+                        name: `${model.id.replace('gpt-','GPT ')}`,
+                        provider: AIProvider.OPENAI,
+                        parameters: standardOpenAIParameters,
+                        supportsVision: model.id.includes('vision') || model.id.includes('4o'),
+                        supportsThinking: model.id.includes('4'), // gpt-4 models are better at reasoning
+                    }));
+            }
+            if (provider === AIProvider.MISTRAL) {
+                const response = await fetch('https://api.mistral.ai/v1/models', {
+                    headers: { 'Authorization': `Bearer ${key}` }
+                });
+                if (!response.ok) throw new Error(`Mistral API Error: ${response.statusText}`);
+                const json = await response.json();
+                return json.data.map((model: any) => ({
+                    id: model.id,
+                    name: `${model.id.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}`,
+                    provider: AIProvider.MISTRAL,
+                    parameters: standardOpenAIParameters,
+                    supportsVision: false, // Mistral API doesn't have public vision models yet
+                    supportsThinking: true,
+                }));
+            }
+            if (provider === AIProvider.OPENROUTER) {
+                const openrouter = new OpenAI({
+                    baseURL: 'https://openrouter.ai/api/v1',
+                    apiKey: key,
+                    dangerouslyAllowBrowser: true,
+                });
+                const response = await openrouter.models.list();
+                 return response.data
+                    .filter(model => model.id.includes('/') && !model.id.includes('sdxl') && !model.id.includes('dall-e'))
+                    .sort((a, b) => ((b as any).context_length || 0) - ((a as any).context_length || 0))
+                    .map((model: any) => ({
+                        id: model.id,
+                        name: model.name || model.id,
+                        provider: AIProvider.OPENROUTER,
+                        parameters: standardOpenAIParameters,
+                        supportsVision: model.architecture?.modality === 'multimodal',
+                        supportsThinking: true, // Assume most modern models support it
+                    }));
+            }
+        } catch (error) {
+            console.error(`Failed to fetch models for ${provider}:`, error);
+            // Fallback to the initial hardcoded list for that provider on error
+            return INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
+        }
+        return [];
     }
 
     private async * runGeminiPreprocessing(query: OriginalQueryInfo, signal: AbortSignal): AsyncGenerator<StreamEvent | { type: 'preprocessed_sources', sources: GroundingChunk[] }> {
@@ -239,7 +304,7 @@ export class AgenticApiService {
         signal: AbortSignal;
         systemPromptOverride?: string;
         originalQueryForRestart?: OriginalQueryInfo | null;
-        command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search' | 'trace_claim';
+        command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search' | 'trace_claim' | 'discourse_map' | 'explain_like_im_in_high_school';
         cacheKey?: string;
         customSystemPrompt?: string;
     }): AsyncGenerator<StreamEvent> {
@@ -335,7 +400,11 @@ ${originalQueryContext}
 If the user provided a specific claim in the input box, focus your trace on that. Otherwise, trace the main topic of our session.`;
                  } else if (command === 'web_search') {
                     promptForThisTurn = `Please perform a web search to provide the most current and relevant information for the following query. Summarize your findings and cite your sources. User Query: "${query as string}"`;
-                 }
+                 } else if (command === 'discourse_map') {
+                    promptForThisTurn = `Based on our conversation, generate a 'discourse map' of the main topic. Use the instructions for 'discourse map' from the system prompt to structure your response.`;
+                } else if (command === 'explain_like_im_in_high_school') {
+                    promptForThisTurn = `Please explain the core concepts of our current discussion as if you were explaining them to a high school student. Keep it clear, concise, and use relatable analogies if possible.`;
+                }
                  mainExecutionPrompt = promptForThisTurn;
                  promptPartsForApi.push({ text: mainExecutionPrompt });
             }

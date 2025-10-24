@@ -1,8 +1,8 @@
+
 import OpenAI from 'openai';
 import { Content } from '@google/genai';
 import { AIProvider, AIModelConfig, ChatMessage, SourceAssessment, ParsedReportSection, GroundingChunk, LinkValidationStatus } from '../types.ts';
 import { SIFT_CHAT_SYSTEM_PROMPT } from '../prompts.ts';
-import { AVAILABLE_PROVIDERS_MODELS } from '../models.config.ts';
 
 const MAX_RECENT_TURNS = 5; // Number of recent user/AI message PAIRS to keep for context
 
@@ -309,59 +309,69 @@ export const checkLinkStatus = async (url: string): Promise<LinkValidationStatus
     return 'invalid';
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout for the first attempt
+  const TIMEOUT = 6000; // 6 seconds for each attempt
+
+  // --- Attempt 1: Standard CORS-enabled HEAD request ---
+  // This is the cleanest method. It will succeed if the server has permissive CORS headers.
+  const headController = new AbortController();
+  const headTimeoutId = setTimeout(() => headController.abort(), TIMEOUT);
 
   try {
-    // Attempt 1: Standard CORS-enabled HEAD request. This is the "cleanest" method.
-    // It will succeed if the server has permissive CORS headers for HEAD requests.
     const response = await fetch(url, {
       method: 'HEAD',
-      signal: controller.signal,
+      signal: headController.signal,
       mode: 'cors',
-      cache: 'no-cache', // Ensure we're not hitting a browser cache
+      cache: 'no-cache',
     });
-    
-    clearTimeout(timeoutId);
+    clearTimeout(headTimeoutId);
 
     if (response.status >= 200 && response.status < 400) {
       return 'valid'; // Success or redirect
     } else {
       return 'invalid'; // 4xx, 5xx client/server errors
     }
-  } catch (error) {
-    // The HEAD request failed. This is most commonly a CORS error, but could also be a network error or a timeout.
-    clearTimeout(timeoutId);
+  } catch (headError) {
+    clearTimeout(headTimeoutId);
+    // Failure here is expected for sites without permissive CORS headers.
+    // It could also be a network error or a timeout. We proceed to the next check.
+  }
 
-    // If the error is an AbortError, it was our timeout. We can't be sure, so mark for manual check.
-    if (error instanceof Error && error.name === 'AbortError') {
-      return 'error_checking'; 
-    }
-
-    // Attempt 2: Fallback to a 'no-cors' GET request.
-    // We can't read the response, but if the request *promise* fails, it's a strong signal of a network error
-    // (e.g., DNS failure, server unreachable). If it succeeds, the server is likely up, and the first failure was a CORS issue.
-    const noCorsController = new AbortController();
-    const noCorsTimeoutId = setTimeout(() => noCorsController.abort(), 8000);
+  // --- Attempt 2 & 3: Fallback to 'no-cors' GET request with a retry ---
+  // We can't read the response, but if the request promise fails, it's a strong signal of a network error.
+  // If it succeeds, the server is likely up, and the first failure was a CORS issue.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const getController = new AbortController();
+    const getTimeoutId = setTimeout(() => getController.abort(), TIMEOUT);
 
     try {
-        // Using GET as it's more universally supported than HEAD, especially for no-cors requests.
-        await fetch(url, {
-            method: 'GET', 
-            mode: 'no-cors',
-            signal: noCorsController.signal,
-            cache: 'no-cache',
-        });
-        clearTimeout(noCorsTimeoutId);
-        // If this request resolves, it means the server is reachable, but the browser is blocking us from reading the response due to CORS.
-        // This is the classic scenario for 'error_checking'.
-        return 'error_checking';
-    } catch (noCorsError) {
-        clearTimeout(noCorsTimeoutId);
-        // If the 'no-cors' request itself fails, it's a strong indication that the link is genuinely broken or unreachable at the network level.
+      await fetch(url, {
+        method: 'GET',
+        mode: 'no-cors',
+        signal: getController.signal,
+        cache: 'no-cache',
+      });
+      
+      clearTimeout(getTimeoutId);
+      // If this request resolves, it means the server is reachable. The browser is just blocking us from reading the response due to CORS.
+      // This is the classic scenario for 'error_checking'. We can confidently return this status.
+      return 'error_checking';
+
+    } catch (getError) {
+      clearTimeout(getTimeoutId);
+
+      // If this is the last attempt and it failed, we assume the link is truly inaccessible.
+      if (attempt === 2) {
+        // The 'no-cors' request itself failed, which strongly indicates a network-level issue (DNS, server down, etc.).
         return 'invalid';
+      }
+      
+      // Wait a moment before retrying to handle transient network hiccups.
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
+
+  // Fallback in case the loop logic somehow fails to return, which shouldn't happen.
+  return 'invalid';
 };
 
 /**

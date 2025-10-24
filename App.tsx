@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { marked } from 'marked';
@@ -32,7 +33,7 @@ import {
   CachedSiftReport
 } from './types.ts';
 import { REPORT_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT } from './prompts.ts';
-import { AVAILABLE_PROVIDERS_MODELS } from './models.config.ts';
+import { INITIAL_MODELS_CONFIG } from './models.config.ts';
 import { downloadMarkdown, downloadPdfWithBrowserPrint, downloadHtml } from './utils/download.ts';
 import { parseSourceAssessmentsFromMarkdown, correctRedirectLinksInMarkdown, checkLinkStatus, transformMarkdownForSubstack } from './utils/apiHelpers.ts';
 
@@ -59,7 +60,8 @@ const AppInternal = (): React.ReactElement => {
   const [userApiKeys, setUserApiKeys] = useState<{ [key in AIProvider]?: string }>({});
   const [apiKeyValidation, setApiKeyValidation] = useState<ApiKeyValidationStates>({});
   const [selectedProviderKey, setSelectedProviderKey] = useState<AIProvider>(AIProvider.GOOGLE_GEMINI);
-  const [selectedModelId, setSelectedModelId] = useState<string>(AVAILABLE_PROVIDERS_MODELS.find(m => m.provider === AIProvider.GOOGLE_GEMINI)?.id || AVAILABLE_PROVIDERS_MODELS[0].id);
+  const [availableModels, setAvailableModels] = useState<AIModelConfig[]>(INITIAL_MODELS_CONFIG);
+  const [selectedModelId, setSelectedModelId] = useState<string>(INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI)?.id || INITIAL_MODELS_CONFIG[0].id);
   const [modelConfigParams, setModelConfigParams] = useState<ConfigurableParams>({});
   const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('');
   const [enableGeminiPreprocessing, setEnableGeminiPreprocessing] = useState<boolean>(false);
@@ -255,8 +257,8 @@ const AppInternal = (): React.ReactElement => {
 
 
   const getSelectedModelConfig = useCallback((): AIModelConfig | undefined => {
-    return AVAILABLE_PROVIDERS_MODELS.find(m => m.id === selectedModelId && m.provider === selectedProviderKey);
-  }, [selectedModelId, selectedProviderKey]);
+    return availableModels.find(m => m.id === selectedModelId && m.provider === selectedProviderKey);
+  }, [selectedModelId, selectedProviderKey, availableModels]);
   
   const handleNewSession = () => {
     // Resets session but preserves API keys, clears saved session
@@ -298,6 +300,21 @@ const AppInternal = (): React.ReactElement => {
     }
   }, [selectedModelId, selectedProviderKey, getSelectedModelConfig]);
 
+  const handleModelsUpdate = useCallback((provider: AIProvider, newModels: AIModelConfig[]) => {
+      setAvailableModels(prev => {
+          const otherProviderModels = prev.filter(m => m.provider !== provider);
+          return [...otherProviderModels, ...newModels];
+      });
+
+      // Check if current selection is still valid for the updated provider
+      if (selectedProviderKey === provider) {
+          const isCurrentModelStillAvailable = newModels.some(m => m.id === selectedModelId);
+          // If the current model is no longer in the list, or if no model is selected for this provider, select the first new one.
+          if ((!isCurrentModelStillAvailable || !selectedModelId) && newModels.length > 0) {
+              setSelectedModelId(newModels[0].id);
+          }
+      }
+  }, [selectedProviderKey, selectedModelId]);
 
   const processStreamEvents = async (stream: AsyncGenerator<StreamEvent>, aiMessageId: string) => {
     let accumulatedText = '';
@@ -550,7 +567,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }]);
 
     try {
-        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing);
+        // FIX: Pass `availableModels` to the AgenticApiService constructor.
+        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
         const stream = service.streamSiftAnalysis({
             isInitialQuery: true,
             query: originalQuery,
@@ -573,7 +591,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
   };
 
 
-  const handleSendChatMessage = async (messageText: string, command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search' | 'trace_claim') => {
+  const handleSendChatMessage = async (messageText: string, command?: 'another round' | 'read the room' | 'generate_context_report' | 'generate_community_note' | 'web_search' | 'trace_claim' | 'discourse_map' | 'explain_like_im_in_high_school') => {
     if (isLoading) return;
     setError(null);
     setIsLoading(true);
@@ -593,7 +611,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     abortControllerRef.current = new AbortController();
 
     try {
-        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing);
+        // FIX: Pass `availableModels` to the AgenticApiService constructor.
+        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
         const stream = service.streamSiftAnalysis({
             isInitialQuery: false,
             query: messageText,
@@ -641,7 +660,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
         abortControllerRef.current = new AbortController();
         setIsLoading(true);
         try {
-            const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing);
+            // FIX: Pass `availableModels` to the AgenticApiService constructor.
+            const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
             const stream = service.streamSiftAnalysis({
                 isInitialQuery: true,
                 query: originalQueryForRestart,
@@ -730,7 +750,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             .replace('[TRANSCRIPT]', transcript)
             .replace('[SOURCE_ASSESSMENTS_TABLE]', sourceAssessmentsTable);
 
-        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, false); // No preprocessing for report
+        // FIX: Pass `availableModels` to the AgenticApiService constructor.
+        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, false, availableModels); // No preprocessing for report
         const stream = service.streamSiftAnalysis({
             isInitialQuery: false,
             query: reportPrompt,
@@ -959,7 +980,8 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             setSelectedProviderKey={setSelectedProviderKey}
             enableGeminiPreprocessing={enableGeminiPreprocessing}
             setEnableGeminiPreprocessing={setEnableGeminiPreprocessing}
-            availableModels={AVAILABLE_PROVIDERS_MODELS}
+            availableModels={availableModels}
+            onModelsUpdate={handleModelsUpdate}
             selectedModelId={selectedModelId}
             onSelectModelId={setSelectedModelId}
             modelConfigParams={modelConfigParams}

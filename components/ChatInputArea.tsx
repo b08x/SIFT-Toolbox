@@ -1,7 +1,7 @@
 import React, { useState, KeyboardEvent } from 'react';
 
 interface ChatInputAreaProps {
-  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note') => void;
+  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school') => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void;
@@ -26,7 +26,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     }
   };
 
-  const handleCommand = (command: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note') => {
+  const handleCommand = (command: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school') => {
     if (!isLoading) {
       const queryText = inputText.trim() || command.replace(/_/g, ' ');
       onSendMessage(queryText, command); 
@@ -82,7 +82,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <button
           onClick={() => handleCommand('another round')}
           disabled={isLoading}
@@ -132,6 +132,24 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             aria-label="Generate SIFT Community Note based on current chat"
         >
             Community Note 📝
+        </button>
+        <button
+            onClick={() => handleCommand('discourse_map')}
+            disabled={isLoading}
+            className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Map out the claims, evidence, and participants in this discourse space"
+            aria-label="Generate a Discourse Map"
+        >
+            Discourse Map 🗺️
+        </button>
+        <button
+            onClick={() => handleCommand('explain_like_im_in_high_school')}
+            disabled={isLoading}
+            className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Explain the current topic in simpler terms"
+            aria-label="Explain the topic simply"
+        >
+            Explain Simply 🧑‍🏫
         </button>
       </div>
 

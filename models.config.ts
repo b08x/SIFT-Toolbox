@@ -1,6 +1,6 @@
 import { AIProvider, AIModelConfig } from './types.ts';
 
-const standardGeminiParameters: AIModelConfig['parameters'] = [
+export const standardGeminiParameters: AIModelConfig['parameters'] = [
   { 
     key: 'temperature', 
     label: 'Temperature', 
@@ -33,7 +33,7 @@ const standardGeminiParameters: AIModelConfig['parameters'] = [
   },
 ];
 
-const standardOpenAIParameters: AIModelConfig['parameters'] = [
+export const standardOpenAIParameters: AIModelConfig['parameters'] = [
       { 
         key: 'temperature', 
         label: 'Temperature', 
@@ -67,7 +67,7 @@ const standardOpenAIParameters: AIModelConfig['parameters'] = [
 ];
 
 
-export const AVAILABLE_PROVIDERS_MODELS: AIModelConfig[] = [
+export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
   // Google Gemini Models
    {
     id: 'gemini-2.5-pro',

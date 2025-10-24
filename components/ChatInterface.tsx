@@ -6,7 +6,7 @@ import { ChatInputArea } from './ChatInputArea.tsx';
 interface ChatInterfaceProps {
   messages: ChatMessage[];
   sourceAssessments: SourceAssessment[];
-  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note') => void;
+  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school') => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void; // New prop for restarting
