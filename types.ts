@@ -200,3 +200,11 @@ export type FinalReport = {
 };
 
 export type StreamEvent = AgentStatusUpdate | TextChunk | GroundingSourcesUpdate | ErrorUpdate | FinalReport;
+
+// Types for Live Conversation
+export interface LiveTranscript {
+  id: string;
+  speaker: 'user' | 'ai' | 'status';
+  text: string;
+  isFinal?: boolean;
+}

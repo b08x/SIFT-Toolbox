@@ -11,6 +11,7 @@ interface ChatInterfaceProps {
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void; // New prop for restarting
   onSourceIndexClick: (index: number) => void;
+  onToggleLiveConversation: () => void;
   canRestart?: boolean; // New prop to enable/disable restart button
   supportsWebSearch?: boolean;
   llmStatusMessage: string | null;
@@ -22,7 +23,7 @@ interface ChatInterfaceProps {
 export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ 
     messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, 
     onRestartGeneration, canRestart, supportsWebSearch, onSourceIndexClick,
-    llmStatusMessage, saveStatus, lastSaveTime, onSaveSession
+    onToggleLiveConversation, llmStatusMessage, saveStatus, lastSaveTime, onSaveSession
 }, ref) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +48,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
             isLoading={isLoading}
             onStopGeneration={onStopGeneration}
             onRestartGeneration={onRestartGeneration}
+            onToggleLiveConversation={onToggleLiveConversation}
             canRestart={canRestart}
             supportsWebSearch={supportsWebSearch}
             llmStatusMessage={llmStatusMessage}

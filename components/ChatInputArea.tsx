@@ -5,6 +5,7 @@ interface ChatInputAreaProps {
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void;
+  onToggleLiveConversation: () => void;
   canRestart?: boolean;
   supportsWebSearch?: boolean;
   llmStatusMessage: string | null;
@@ -14,7 +15,7 @@ interface ChatInputAreaProps {
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ 
-    onSendMessage, isLoading, onStopGeneration, onRestartGeneration, canRestart, supportsWebSearch,
+    onSendMessage, isLoading, onStopGeneration, onRestartGeneration, onToggleLiveConversation, canRestart, supportsWebSearch,
     llmStatusMessage, onSaveSession, saveStatus, lastSaveTime
 }) => {
   const [inputText, setInputText] = useState('');
@@ -199,6 +200,17 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             </svg>
           </button>
         )}
+        <button
+            onClick={onToggleLiveConversation}
+            disabled={isLoading}
+            className="px-4 py-3 text-on-primary font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main bg-border hover:bg-border-hover focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center"
+            aria-label="Start live conversation"
+            title="Start live conversation"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+            </svg>
+        </button>
         <button
           onClick={isLoading ? onStopGeneration : handleSend}
           disabled={isLoading ? false : !inputText.trim()}

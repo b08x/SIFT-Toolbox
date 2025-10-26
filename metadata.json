@@ -1,6 +1,8 @@
 {
   "name": "SIFT Toolbox",
   "description": "A web application to generate fact-checking and contextualization reports using the SIFT methodology and Gemini API. Users can input text or images to analyze and receive a structured report.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "microphone"
+  ],
   "prompt": ""
 }

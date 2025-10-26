@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { marked } from 'marked';
@@ -11,6 +12,7 @@ import { AgenticApiService } from './services/agenticApiService.ts';
 import { SourceAssessmentModal } from './components/SourceAssessmentModal.tsx';
 import { SessionConfigurationView } from './components/SessionConfigurationView.tsx';
 import { AboutContent } from './components/LandingPage.tsx';
+import { LiveConversationView } from './components/LiveConversationView.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
 import { generateCacheKey, getCachedSiftReport, setSiftReportCache, SIFT_PROMPT_VERSION } from './utils/cache.ts';
 
@@ -55,6 +57,8 @@ const AppInternal = (): React.ReactElement => {
   const [mainView, setMainView] = useState<'config' | 'chat'>('config');
   const [configTab, setConfigTab] = useState<'config' | 'about'>('config');
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
+  const [isLiveConversationOpen, setIsLiveConversationOpen] = useState(false);
+
 
   // Configuration State
   const [userApiKeys, setUserApiKeys] = useState<{ [key in AIProvider]?: string }>({});
@@ -567,7 +571,6 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }]);
 
     try {
-        // FIX: Pass `availableModels` to the AgenticApiService constructor.
         const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
         const stream = service.streamSiftAnalysis({
             isInitialQuery: true,
@@ -611,7 +614,6 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     abortControllerRef.current = new AbortController();
 
     try {
-        // FIX: Pass `availableModels` to the AgenticApiService constructor.
         const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
         const stream = service.streamSiftAnalysis({
             isInitialQuery: false,
@@ -660,7 +662,6 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
         abortControllerRef.current = new AbortController();
         setIsLoading(true);
         try {
-            // FIX: Pass `availableModels` to the AgenticApiService constructor.
             const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
             const stream = service.streamSiftAnalysis({
                 isInitialQuery: true,
@@ -750,7 +751,6 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             .replace('[TRANSCRIPT]', transcript)
             .replace('[SOURCE_ASSESSMENTS_TABLE]', sourceAssessmentsTable);
 
-        // FIX: Pass `availableModels` to the AgenticApiService constructor.
         const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, false, availableModels); // No preprocessing for report
         const stream = service.streamSiftAnalysis({
             isInitialQuery: false,
@@ -952,6 +952,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                     onStopGeneration={handleStopGeneration}
                     onRestartGeneration={handleRestartGeneration}
                     onSourceIndexClick={handleSourceIndexClick}
+                    onToggleLiveConversation={() => setIsLiveConversationOpen(true)}
                     canRestart={originalQueryForRestart !== null && !isLoading}
                     supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
                     llmStatusMessage={llmStatusMessage}
@@ -994,6 +995,14 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
         <SourceAssessmentModal 
           source={selectedSourceForModal} 
           onClose={() => setSelectedSourceForModal(null)} 
+        />
+      )}
+      {isLiveConversationOpen && (
+        <LiveConversationView 
+            userApiKeys={userApiKeys}
+            onOpenSettings={() => setIsSettingsModalOpen(true)}
+            apiKeyValidation={apiKeyValidation}
+            onClose={() => setIsLiveConversationOpen(false)}
         />
       )}
     </div>
