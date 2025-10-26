@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { marked } from 'marked';
@@ -15,6 +13,7 @@ import { AboutContent } from './components/LandingPage.tsx';
 import { LiveConversationView } from './components/LiveConversationView.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
 import { generateCacheKey, getCachedSiftReport, setSiftReportCache, SIFT_PROMPT_VERSION } from './utils/cache.ts';
+import { useAppStore } from './store.ts';
 
 
 import { 
@@ -25,12 +24,10 @@ import {
   AIModelConfig, 
   ConfigurableParams,
   CurrentSiftQueryDetails,
-  ApiKeyValidationStates,
   UploadedFile,
   StreamEvent,
   SourceAssessment,
   SavedSessionState,
-  LinkValidationStatus,
   CacheableQueryDetails,
   CachedSiftReport
 } from './types.ts';
@@ -58,26 +55,12 @@ const AppInternal = (): React.ReactElement => {
   const [configTab, setConfigTab] = useState<'config' | 'about'>('config');
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const [isLiveConversationOpen, setIsLiveConversationOpen] = useState(false);
-
-
-  // Configuration State
-  const [userApiKeys, setUserApiKeys] = useState<{ [key in AIProvider]?: string }>({});
-  const [apiKeyValidation, setApiKeyValidation] = useState<ApiKeyValidationStates>({});
-  const [selectedProviderKey, setSelectedProviderKey] = useState<AIProvider>(AIProvider.GOOGLE_GEMINI);
-  const [availableModels, setAvailableModels] = useState<AIModelConfig[]>(INITIAL_MODELS_CONFIG);
-  const [selectedModelId, setSelectedModelId] = useState<string>(INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI)?.id || INITIAL_MODELS_CONFIG[0].id);
-  const [modelConfigParams, setModelConfigParams] = useState<ConfigurableParams>({});
-  const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('');
-  const [enableGeminiPreprocessing, setEnableGeminiPreprocessing] = useState<boolean>(false);
-  const [sessionTopic, setSessionTopic] = useState<string>('');
-  const [sessionContext, setSessionContext] = useState<string>('');
-  const [sessionFiles, setSessionFiles] = useState<UploadedFile[]>([]);
-  const [sessionUrls, setSessionUrls] = useState<string>('');
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
+  // Zustand Store Integration
+  const store = useAppStore();
 
   // Chat State
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,11 +71,6 @@ const AppInternal = (): React.ReactElement => {
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   
-  const [currentSiftQueryDetails, setCurrentSiftQueryDetails] = useState<CurrentSiftQueryDetails | null>(null);
-  const [originalQueryForRestart, setOriginalQueryForRestart] = useState<OriginalQueryInfo | null>(null);
-  
-  // Source Assessment State
-  const [sourceAssessments, setSourceAssessments] = useState<SourceAssessment[]>([]);
   const [selectedSourceForModal, setSelectedSourceForModal] = useState<SourceAssessment | null>(null);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -107,18 +85,18 @@ const AppInternal = (): React.ReactElement => {
   }, []);
   
   const isApiKeyValid = useMemo(() => {
-      if (enableGeminiPreprocessing && selectedProviderKey !== AIProvider.GOOGLE_GEMINI) {
-          return apiKeyValidation[selectedProviderKey] === 'valid' && apiKeyValidation[AIProvider.GOOGLE_GEMINI] === 'valid';
+      if (store.enableGeminiPreprocessing && store.selectedProviderKey !== AIProvider.GOOGLE_GEMINI) {
+          return store.apiKeyValidation[store.selectedProviderKey] === 'valid' && store.apiKeyValidation[AIProvider.GOOGLE_GEMINI] === 'valid';
       }
-      return apiKeyValidation[selectedProviderKey] === 'valid';
-  }, [apiKeyValidation, selectedProviderKey, enableGeminiPreprocessing]);
+      return store.apiKeyValidation[store.selectedProviderKey] === 'valid';
+  }, [store.apiKeyValidation, store.selectedProviderKey, store.enableGeminiPreprocessing]);
 
   // Effect to auto-open settings modal if key is invalid on config screen
   useEffect(() => {
-      if (mainView === 'config' && !isApiKeyValid && chatMessages.length === 0) {
+      if (mainView === 'config' && !isApiKeyValid && store.chatMessages.length === 0) {
           setIsSettingsModalOpen(true);
       }
-  }, [isApiKeyValid, mainView, chatMessages.length]);
+  }, [isApiKeyValid, mainView, store.chatMessages.length]);
 
   // Effect to handle clicks outside of the tools menu to close it
   useEffect(() => {
@@ -139,11 +117,8 @@ const AppInternal = (): React.ReactElement => {
     if (assessmentsToCheck.length === 0) return;
 
     // Immediately mark the ones we are about to check as 'checking' in the UI
-    setSourceAssessments(prev => prev.map(assessment => 
-        assessmentsToCheck.some(a => a.url === assessment.url)
-            ? { ...assessment, linkValidationStatus: 'checking' }
-            : assessment
-    ));
+    const checkingAssessments = assessmentsToCheck.map(a => ({ ...a, linkValidationStatus: 'checking' as const }));
+    store.updateSourceAssessments(checkingAssessments);
 
     const checkedAssessmentsPromises = assessmentsToCheck.map(async (assessment) => {
         const status = await checkLinkStatus(assessment.url);
@@ -151,37 +126,19 @@ const AppInternal = (): React.ReactElement => {
     });
 
     const results = await Promise.all(checkedAssessmentsPromises);
-
-    // Merge results back into the main state
-    setSourceAssessments(prev => {
-        const resultsMap = new Map(results.map(r => [r.url, r.linkValidationStatus]));
-        return prev.map(assessment => 
-            resultsMap.has(assessment.url)
-                ? { ...assessment, linkValidationStatus: resultsMap.get(assessment.url) }
-                : assessment
-        );
-    });
-  }, []);
+    store.updateSourceAssessments(results);
+  }, [store]);
 
   const performSave = useCallback(() => {
-    if (isLoading || chatMessages.length === 0) return;
+    if (isLoading || store.chatMessages.length === 0) return;
 
     setSaveStatus('saving');
-    // Short delay for UI to update to "Saving..."
     setTimeout(() => {
         try {
+            const { chatMessages, currentSiftQueryDetails, originalQueryForRestart, sourceAssessments, selectedProviderKey, selectedModelId, modelConfigParams, enableGeminiPreprocessing, userApiKeys, apiKeyValidation, customSystemPrompt } = useAppStore.getState();
             const sessionState: SavedSessionState = {
-                chatMessages,
-                currentSiftQueryDetails,
-                originalQueryForRestart,
-                sourceAssessments,
-                selectedProviderKey,
-                selectedModelId,
-                modelConfigParams,
-                enableGeminiPreprocessing,
-                userApiKeys,
-                apiKeyValidation,
-                customSystemPrompt,
+                chatMessages, currentSiftQueryDetails, originalQueryForRestart, sourceAssessments, selectedProviderKey,
+                selectedModelId, modelConfigParams, enableGeminiPreprocessing, userApiKeys, apiKeyValidation, customSystemPrompt,
             };
             SessionManager.saveSession(sessionState);
             setSavedSessionExists(true);
@@ -192,18 +149,14 @@ const AppInternal = (): React.ReactElement => {
             setSaveStatus('error');
         }
     }, 200);
-  }, [
-      isLoading, chatMessages, currentSiftQueryDetails, originalQueryForRestart, sourceAssessments,
-      selectedProviderKey, selectedModelId, modelConfigParams, enableGeminiPreprocessing, userApiKeys, apiKeyValidation, customSystemPrompt
-  ]);
+  }, [isLoading, store.chatMessages.length]);
 
   // Debounced auto-save effect
   useEffect(() => {
-    if (!isLoading && chatMessages.length > 0) {
+    if (!isLoading && store.chatMessages.length > 0) {
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
         }
-        // Set a timeout to perform the save after 2 seconds of no changes that trigger this effect.
         saveTimeoutRef.current = window.setTimeout(performSave, 2000);
     }
 
@@ -212,7 +165,7 @@ const AppInternal = (): React.ReactElement => {
             clearTimeout(saveTimeoutRef.current);
         }
     };
-  }, [performSave, isLoading, chatMessages.length]);
+  }, [performSave, isLoading, store.chatMessages.length]);
 
   const handleManualSave = () => {
       if (saveTimeoutRef.current) {
@@ -224,71 +177,48 @@ const AppInternal = (): React.ReactElement => {
   const handleRestoreSession = () => {
     const session = SessionManager.loadSession();
     if (session) {
-      setChatMessages(session.chatMessages);
-      setCurrentSiftQueryDetails(session.currentSiftQueryDetails);
-      setOriginalQueryForRestart(session.originalQueryForRestart);
-      
       // Mark all restored assessments as unchecked so they get validated on load
       const assessmentsToLoad = session.sourceAssessments.map(a => ({...a, linkValidationStatus: 'unchecked' as const}));
-      setSourceAssessments(assessmentsToLoad);
+      
+      const sessionTopic = session.currentSiftQueryDetails?.sessionTopic || '';
+      const sessionContext = session.currentSiftQueryDetails?.sessionContext || '';
+      const sessionFiles = session.currentSiftQueryDetails?.sessionFiles || [];
+      const sessionUrls = session.currentSiftQueryDetails?.sessionUrls.join('\n') || '';
+
+      store.setInitialState({ ...session, sourceAssessments: assessmentsToLoad, sessionTopic, sessionContext, sessionFiles, sessionUrls });
+
       if (assessmentsToLoad.length > 0) {
           checkSourceLinks(assessmentsToLoad);
       }
-
-      setSelectedProviderKey(session.selectedProviderKey);
-      setSelectedModelId(session.selectedModelId);
-      setModelConfigParams(session.modelConfigParams);
-      setEnableGeminiPreprocessing(session.enableGeminiPreprocessing);
-      setUserApiKeys(session.userApiKeys);
-      setApiKeyValidation(session.apiKeyValidation);
-      setCustomSystemPrompt(session.customSystemPrompt || '');
       
-      // Restore initial config screen state from the loaded details if needed for consistency
-      if (session.currentSiftQueryDetails) {
-          setSessionTopic(session.currentSiftQueryDetails.sessionTopic);
-          setSessionContext(session.currentSiftQueryDetails.sessionContext);
-          setSessionFiles(session.currentSiftQueryDetails.sessionFiles);
-          setSessionUrls(session.currentSiftQueryDetails.sessionUrls.join('\n'));
-      }
-      
-      setMainView('chat'); // Go directly to chat on restore
-      setLastSaveTime(new Date()); // Indicate that what is loaded is "saved" as of now.
+      setMainView('chat');
+      setLastSaveTime(new Date());
       setSaveStatus('saved');
     } else {
       alert("Could not find or load the saved session.");
     }
   };
 
-
+  const [availableModels, setAvailableModels] = useState<AIModelConfig[]>(INITIAL_MODELS_CONFIG);
+  
   const getSelectedModelConfig = useCallback((): AIModelConfig | undefined => {
-    return availableModels.find(m => m.id === selectedModelId && m.provider === selectedProviderKey);
-  }, [selectedModelId, selectedProviderKey, availableModels]);
+    return availableModels.find(m => m.id === store.selectedModelId && m.provider === store.selectedProviderKey);
+  }, [store.selectedModelId, store.selectedProviderKey, availableModels]);
   
   const handleNewSession = () => {
-    // Resets session but preserves API keys, clears saved session
-    setChatMessages([]);
+    store.resetSession();
     setIsLoading(false);
     setError(null);
     setLlmStatusMessage(null);
-    setOriginalQueryForRestart(null);
-    setCurrentSiftQueryDetails(null);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    setSessionTopic('');
-    setSessionContext('');
-    setSessionFiles([]);
-    setSessionUrls('');
-    setSourceAssessments([]);
     setSelectedSourceForModal(null);
-    setCustomSystemPrompt('');
-
     SessionManager.clearSession();
     setSavedSessionExists(false);
     setSaveStatus('idle');
     setLastSaveTime(null);
-
     setMainView('config');
     setConfigTab('config');
   };
@@ -300,9 +230,9 @@ const AppInternal = (): React.ReactElement => {
       currentModelConfig.parameters.forEach(param => {
         initialParams[param.key] = param.defaultValue;
       });
-      setModelConfigParams(initialParams);
+      store.setModelConfigParams(initialParams);
     }
-  }, [selectedModelId, selectedProviderKey, getSelectedModelConfig]);
+  }, [store.selectedModelId, store.selectedProviderKey, getSelectedModelConfig, store.setModelConfigParams]);
 
   const handleModelsUpdate = useCallback((provider: AIProvider, newModels: AIModelConfig[]) => {
       setAvailableModels(prev => {
@@ -310,30 +240,26 @@ const AppInternal = (): React.ReactElement => {
           return [...otherProviderModels, ...newModels];
       });
 
-      // Check if current selection is still valid for the updated provider
-      if (selectedProviderKey === provider) {
-          const isCurrentModelStillAvailable = newModels.some(m => m.id === selectedModelId);
-          // If the current model is no longer in the list, or if no model is selected for this provider, select the first new one.
-          if ((!isCurrentModelStillAvailable || !selectedModelId) && newModels.length > 0) {
-              setSelectedModelId(newModels[0].id);
+      if (store.selectedProviderKey === provider) {
+          const isCurrentModelStillAvailable = newModels.some(m => m.id === store.selectedModelId);
+          if ((!isCurrentModelStillAvailable || !store.selectedModelId) && newModels.length > 0) {
+              store.setSelectedModelId(newModels[0].id);
           }
       }
-  }, [selectedProviderKey, selectedModelId]);
+  }, [store.selectedProviderKey, store.selectedModelId, store.setSelectedModelId]);
 
   const processStreamEvents = async (stream: AsyncGenerator<StreamEvent>, aiMessageId: string) => {
     let accumulatedText = '';
     let inThinkBlock = false;
     let accumulatedReasoning = '';
-
-    // Buffering logic for smoother UI updates
     let textBufferForUiUpdate = '';
     let lastUiUpdate = Date.now();
-    const UI_UPDATE_INTERVAL = 100; // ms
+    const UI_UPDATE_INTERVAL = 100;
 
     const flushUiBuffer = () => {
         if (textBufferForUiUpdate.length > 0) {
             accumulatedText += textBufferForUiUpdate;
-            setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: accumulatedText } : m));
+            store.updateChatMessage(aiMessageId, { text: accumulatedText });
             textBufferForUiUpdate = '';
         }
         lastUiUpdate = Date.now();
@@ -350,13 +276,11 @@ const AppInternal = (): React.ReactElement => {
           break;
         case 'chunk':
           let streamBuffer = event.text;
-
           while (streamBuffer.length > 0) {
               if (inThinkBlock) {
                   const endTagIndex = streamBuffer.indexOf('</think>');
                   if (endTagIndex !== -1) {
-                      const reasoningChunk = streamBuffer.substring(0, endTagIndex);
-                      accumulatedReasoning += reasoningChunk;
+                      accumulatedReasoning += streamBuffer.substring(0, endTagIndex);
                       streamBuffer = streamBuffer.substring(endTagIndex + '</think>'.length);
                       inThinkBlock = false;
                   } else {
@@ -366,8 +290,7 @@ const AppInternal = (): React.ReactElement => {
               } else {
                   const startTagIndex = streamBuffer.indexOf('<think>');
                   if (startTagIndex !== -1) {
-                      const normalChunk = streamBuffer.substring(0, startTagIndex);
-                      textBufferForUiUpdate += normalChunk;
+                      textBufferForUiUpdate += streamBuffer.substring(0, startTagIndex);
                       streamBuffer = streamBuffer.substring(startTagIndex + '<think>'.length);
                       inThinkBlock = true;
                   } else {
@@ -376,92 +299,58 @@ const AppInternal = (): React.ReactElement => {
                   }
               }
           }
-
           if (Date.now() - lastUiUpdate > UI_UPDATE_INTERVAL) {
             flushUiBuffer();
           }
           break;
         case 'sources':
-          setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, groundingSources: event.sources } : m));
+          store.updateChatMessage(aiMessageId, { groundingSources: event.sources });
           break;
         case 'error':
           setError(event.error);
           setLlmStatusMessage(`Error: ${event.error}`);
-          setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: `Error: ${event.error}`, isLoading: false, isError: true } : m));
-          return; // Stop processing on error
+          store.updateChatMessage(aiMessageId, { text: `Error: ${event.error}`, isLoading: false, isError: true });
+          return;
         case 'final':
-          flushUiBuffer(); // Final flush to capture all remaining text.
-
+          flushUiBuffer();
           if (event.cacheKey && event.fullText) {
               const reportToCache: CachedSiftReport = {
-                  text: event.fullText,
-                  groundingSources: event.groundingSources,
-                  modelId: event.modelId,
-                  originalQueryReportType: event.originalQueryReportType || ReportType.FULL_CHECK,
-                  cachedAt: Date.now()
+                  text: event.fullText, groundingSources: event.groundingSources, modelId: event.modelId,
+                  originalQueryReportType: event.originalQueryReportType || ReportType.FULL_CHECK, cachedAt: Date.now()
               };
               setSiftReportCache(event.cacheKey, reportToCache);
           }
-
-          // Use the locally accumulated text which has been stripped of the <think> tags.
-          // This ensures the main message body does not contain the reasoning block.
           let textForReport = accumulatedText;
           if (event.groundingSources && event.groundingSources.length > 0) {
               textForReport = correctRedirectLinksInMarkdown(textForReport, event.groundingSources);
           }
-
           const newAssessments = parseSourceAssessmentsFromMarkdown(textForReport);
-
           if (newAssessments.length > 0) {
-              setSourceAssessments(prevAssessments => {
-                  const updatedAssessmentsMap = new Map<string, Omit<SourceAssessment, 'index'>>();
-                  
-                  prevAssessments.forEach(a => updatedAssessmentsMap.set(a.url, a));
-                  newAssessments.forEach(newA => {
-                      const existing = updatedAssessmentsMap.get(newA.url);
-                      updatedAssessmentsMap.set(newA.url, { ...existing, ...newA });
-                  });
-  
-                  const sortedAssessments = Array.from(updatedAssessmentsMap.values()).sort((a, b) => {
-                    const ratingA = getNumericRating(a.rating);
-                    const ratingB = getNumericRating(b.rating);
-                    return ratingB - ratingA;
-                  });
-                  
-                  const finalAssessments = sortedAssessments.map((assessment, index) => {
-                      const prevAssessment = prevAssessments.find(pa => pa.url === assessment.url);
-                      return {
-                          ...assessment,
-                          index: index + 1,
-                          linkValidationStatus: prevAssessment?.linkValidationStatus || 'unchecked',
-                      };
-                  });
-
-                  const assessmentsThatNeedChecking = finalAssessments.filter(
-                      fa => fa.linkValidationStatus === 'unchecked'
-                  );
-                  if (assessmentsThatNeedChecking.length > 0) {
-                      checkSourceLinks(assessmentsThatNeedChecking);
-                  }
-
-                  return finalAssessments;
+              const prevAssessments = useAppStore.getState().sourceAssessments;
+              const updatedAssessmentsMap = new Map<string, Omit<SourceAssessment, 'index'>>();
+              prevAssessments.forEach(a => updatedAssessmentsMap.set(a.url, a));
+              newAssessments.forEach(newA => {
+                  const existing = updatedAssessmentsMap.get(newA.url);
+                  updatedAssessmentsMap.set(newA.url, { ...existing, ...newA });
               });
+              const sortedAssessments = Array.from(updatedAssessmentsMap.values()).sort((a, b) => getNumericRating(b.rating) - getNumericRating(a.rating));
+              const finalAssessments = sortedAssessments.map((assessment, index) => {
+                  const prevAssessment = prevAssessments.find(pa => pa.url === assessment.url);
+                  return { ...assessment, index: index + 1, linkValidationStatus: prevAssessment?.linkValidationStatus || 'unchecked' };
+              });
+              const assessmentsThatNeedChecking = finalAssessments.filter(fa => fa.linkValidationStatus === 'unchecked');
+              if (assessmentsThatNeedChecking.length > 0) checkSourceLinks(assessmentsThatNeedChecking);
+              store.setSourceAssessments(finalAssessments);
           }
-          setChatMessages(prev => prev.map(m => m.id === aiMessageId ? {
-            ...m,
-            text: textForReport, // Use the definitive stripped & corrected full text
-            isLoading: false,
-            groundingSources: event.groundingSources,
-            isInitialSIFTReport: event.isInitialSIFTReport,
-            originalQueryReportType: event.originalQueryReportType,
-            modelId: event.modelId,
-            reasoning: accumulatedReasoning.trim(),
-          } : m));
+          store.updateChatMessage(aiMessageId, {
+            text: textForReport, isLoading: false, groundingSources: event.groundingSources,
+            isInitialSIFTReport: event.isInitialSIFTReport, originalQueryReportType: event.originalQueryReportType,
+            modelId: event.modelId, reasoning: accumulatedReasoning.trim(),
+          });
           setLlmStatusMessage("Response complete.");
           break;
       }
     }
-    // Final flush after loop in case stream ends without a 'final' event
     flushUiBuffer();
   };
 
@@ -475,6 +364,7 @@ const AppInternal = (): React.ReactElement => {
       return;
     }
 
+    const { sessionTopic, sessionContext, sessionFiles, sessionUrls } = store;
     const initialPrompt = `New SIFT Session Started.
 **Topic/Subject:** ${sessionTopic || "Not specified"}
 **Additional Context/Instructions:** ${sessionContext || "None"}
@@ -484,13 +374,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     const initialUserMessageText = `Let's begin the SIFT analysis. My topic is "${sessionTopic}" with the following context: "${sessionContext}". Please provide an initial analysis or plan of action based on this, considering any attached files or URLs.`;
     const urlList = sessionUrls.trim() ? sessionUrls.trim().split('\n').filter(u => u.trim() !== '') : [];
     
-    const originalQuery: OriginalQueryInfo = {
-        text: initialUserMessageText,
-        reportType: ReportType.FULL_CHECK, // Start with a full check by default
-        files: sessionFiles,
-        urls: urlList,
-    };
-
+    const originalQuery: OriginalQueryInfo = { text: initialUserMessageText, reportType: ReportType.FULL_CHECK, files: sessionFiles, urls: urlList };
     if (!sessionTopic.trim()) {
       setError("Please provide a Topic/Subject to start the session.");
       return;
@@ -499,34 +383,17 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     setIsLoading(true); 
     setMainView('chat');
 
-    const userMessage: ChatMessage = {
-      id: uuidv4(),
-      sender: 'user',
-      text: initialPrompt,
-      timestamp: new Date(),
-      originalQuery: originalQuery,
-      uploadedFiles: sessionFiles,
-    };
-    setChatMessages([userMessage]);
+    const userMessage: ChatMessage = { id: uuidv4(), sender: 'user', text: initialPrompt, timestamp: new Date(), originalQuery: originalQuery, uploadedFiles: sessionFiles };
+    store.setChatMessages([userMessage]);
     
-    setCurrentSiftQueryDetails({
-      sessionTopic: sessionTopic,
-      sessionContext: sessionContext,
-      sessionFiles: sessionFiles,
-      sessionUrls: urlList,
-    });
-    setOriginalQueryForRestart(originalQuery); 
-    setSourceAssessments([]); // Clear assessments for new session
+    store.setCurrentSiftQueryDetails({ sessionTopic, sessionContext, sessionFiles, sessionUrls: urlList });
+    store.setOriginalQueryForRestart(originalQuery); 
+    store.setSourceAssessments([]);
 
-    // Caching logic
     const cacheableDetails: CacheableQueryDetails = {
-        text: originalQuery.text,
-        files: sessionFiles.map(f => ({ base64Data: f.base64Data, name: f.name })),
-        reportType: originalQuery.reportType,
-        provider: selectedProviderKey,
-        modelId: selectedModelId,
-        modelConfigParams,
-        siftPromptVersion: SIFT_PROMPT_VERSION,
+        text: originalQuery.text, files: sessionFiles.map(f => ({ base64Data: f.base64Data, name: f.name })),
+        reportType: originalQuery.reportType, provider: store.selectedProviderKey, modelId: store.selectedModelId,
+        modelConfigParams: store.modelConfigParams, siftPromptVersion: SIFT_PROMPT_VERSION,
     };
     const cacheKey = await generateCacheKey(cacheableDetails);
     const cachedReport = getCachedSiftReport(cacheKey);
@@ -534,59 +401,34 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     if (cachedReport) {
         setLlmStatusMessage("Loaded report from local cache.");
         const aiMessage: ChatMessage = {
-            id: uuidv4(),
-            sender: 'ai',
-            text: cachedReport.text,
-            timestamp: new Date(),
-            isLoading: false,
-            groundingSources: cachedReport.groundingSources,
-            isInitialSIFTReport: true,
-            originalQueryReportType: cachedReport.originalQueryReportType,
-            modelId: cachedReport.modelId,
-            isFromCache: true,
+            id: uuidv4(), sender: 'ai', text: cachedReport.text, timestamp: new Date(), isLoading: false,
+            groundingSources: cachedReport.groundingSources, isInitialSIFTReport: true,
+            originalQueryReportType: cachedReport.originalQueryReportType, modelId: cachedReport.modelId, isFromCache: true,
         };
-        setChatMessages(prev => [...prev, aiMessage]);
-        
-        const assessmentsFromCache = parseSourceAssessmentsFromMarkdown(cachedReport.text)
-            .map((a, index) => ({ ...a, index: index + 1, linkValidationStatus: 'unchecked' as const }));
-        setSourceAssessments(assessmentsFromCache);
-        if (assessmentsFromCache.length > 0) {
-            checkSourceLinks(assessmentsFromCache);
-        }
-        
+        store.addChatMessage(aiMessage);
+        const assessmentsFromCache = parseSourceAssessmentsFromMarkdown(cachedReport.text).map((a, index) => ({ ...a, index: index + 1, linkValidationStatus: 'unchecked' as const }));
+        store.setSourceAssessments(assessmentsFromCache);
+        if (assessmentsFromCache.length > 0) checkSourceLinks(assessmentsFromCache);
         setIsLoading(false);
         return;
     }
-    // End of cache check
 
     abortControllerRef.current = new AbortController();
     const aiMessageId = uuidv4();
-    setChatMessages(prev => [...prev, { 
-      id: aiMessageId, 
-      sender: 'ai', 
-      text: '', 
-      isLoading: true, 
-      timestamp: new Date(), 
-      modelId: selectedModelId 
-    }]);
+    store.addChatMessage({ id: aiMessageId, sender: 'ai', text: '', isLoading: true, timestamp: new Date(), modelId: store.selectedModelId });
 
     try {
-        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
+        const service = new AgenticApiService(store.selectedProviderKey, store.selectedModelId, store.userApiKeys, store.enableGeminiPreprocessing, availableModels);
         const stream = service.streamSiftAnalysis({
-            isInitialQuery: true,
-            query: originalQuery,
-            fullChatHistory: [userMessage],
-            modelConfigParams: modelConfigParams,
-            signal: abortControllerRef.current.signal,
-            customSystemPrompt,
-            cacheKey, // Pass cache key to the service
+            isInitialQuery: true, query: originalQuery, fullChatHistory: [userMessage], modelConfigParams: store.modelConfigParams,
+            signal: abortControllerRef.current.signal, customSystemPrompt: store.customSystemPrompt, cacheKey,
         });
         await processStreamEvents(stream, aiMessageId);
     } catch (e) {
       const errorText = `Failed to start analysis: ${e instanceof Error ? e.message : String(e)}`;
       setError(errorText);
       setLlmStatusMessage(errorText);
-      setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: errorText, isLoading: false, isError: true } : m));
+      store.updateChatMessage(aiMessageId, { text: errorText, isLoading: false, isError: true });
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
@@ -599,38 +441,28 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     setError(null);
     setIsLoading(true);
 
-    const userMessage: ChatMessage = {
-      id: uuidv4(),
-      sender: 'user',
-      text: messageText,
-      timestamp: new Date(),
-    };
-    const updatedChatMessages = [...chatMessages, userMessage];
-    setChatMessages(updatedChatMessages);
-
+    const userMessage: ChatMessage = { id: uuidv4(), sender: 'user', text: messageText, timestamp: new Date() };
+    store.addChatMessage(userMessage);
+    const updatedChatMessages = [...useAppStore.getState().chatMessages];
+    
     const aiMessageId = uuidv4();
-    setChatMessages(prev => [...prev, { id: aiMessageId, sender: 'ai', text: '', isLoading: true, timestamp: new Date(), modelId: selectedModelId }]);
+    store.addChatMessage({ id: aiMessageId, sender: 'ai', text: '', isLoading: true, timestamp: new Date(), modelId: store.selectedModelId });
     
     abortControllerRef.current = new AbortController();
 
     try {
-        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
+        const service = new AgenticApiService(store.selectedProviderKey, store.selectedModelId, store.userApiKeys, store.enableGeminiPreprocessing, availableModels);
         const stream = service.streamSiftAnalysis({
-            isInitialQuery: false,
-            query: messageText,
-            fullChatHistory: updatedChatMessages,
-            modelConfigParams,
-            signal: abortControllerRef.current.signal,
-            originalQueryForRestart,
-            command,
-            customSystemPrompt,
+            isInitialQuery: false, query: messageText, fullChatHistory: updatedChatMessages, modelConfigParams: store.modelConfigParams,
+            signal: abortControllerRef.current.signal, originalQueryForRestart: store.originalQueryForRestart,
+            command, customSystemPrompt: store.customSystemPrompt,
         });
         await processStreamEvents(stream, aiMessageId);
     } catch (e) {
       const errorText = `Failed to send message: ${e instanceof Error ? e.message : String(e)}`;
       setError(errorText);
       setLlmStatusMessage(errorText);
-      setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: errorText, isLoading: false, isError: true } : m));
+      store.updateChatMessage(aiMessageId, { text: errorText, isLoading: false, isError: true });
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
@@ -644,32 +476,28 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
     setIsLoading(false);
     setLlmStatusMessage(prev => prev && !prev.includes("Stopped by user") ? prev + " (Stopped by user)" : "Generation stopped by user.");
-    setChatMessages(prevMessages => 
-      prevMessages.map(msg => 
-        msg.isLoading ? { ...msg, text: msg.text + "\n\nGeneration stopped by user.", isLoading: false, isError: false } : msg
-      )
-    );
+    useAppStore.getState().chatMessages.forEach(msg => {
+        if (msg.isLoading) {
+            store.updateChatMessage(msg.id, { text: msg.text + "\n\nGeneration stopped by user.", isLoading: false, isError: false });
+        }
+    });
   };
 
   const handleRestartGeneration = () => {
-    if (originalQueryForRestart) {
-      const firstUserMessage = chatMessages.find(msg => msg.sender === 'user' && msg.originalQuery);
+    if (store.originalQueryForRestart) {
+      const firstUserMessage = store.chatMessages.find(msg => msg.sender === 'user' && msg.originalQuery);
       if (firstUserMessage) {
-        setChatMessages([firstUserMessage]); 
-        setSourceAssessments([]); // Clear assessments on restart
+        store.setChatMessages([firstUserMessage]); 
+        store.setSourceAssessments([]);
         const aiMessageId = uuidv4();
-        setChatMessages(prev => [...prev, { id: aiMessageId, sender: 'ai', text: '', isLoading: true, timestamp: new Date(), modelId: selectedModelId }]);
+        store.addChatMessage({ id: aiMessageId, sender: 'ai', text: '', isLoading: true, timestamp: new Date(), modelId: store.selectedModelId });
         abortControllerRef.current = new AbortController();
         setIsLoading(true);
         try {
-            const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, enableGeminiPreprocessing, availableModels);
+            const service = new AgenticApiService(store.selectedProviderKey, store.selectedModelId, store.userApiKeys, store.enableGeminiPreprocessing, availableModels);
             const stream = service.streamSiftAnalysis({
-                isInitialQuery: true,
-                query: originalQueryForRestart,
-                fullChatHistory: [firstUserMessage],
-                modelConfigParams: modelConfigParams,
-                signal: abortControllerRef.current.signal,
-                customSystemPrompt,
+                isInitialQuery: true, query: store.originalQueryForRestart, fullChatHistory: [firstUserMessage],
+                modelConfigParams: store.modelConfigParams, signal: abortControllerRef.current.signal, customSystemPrompt: store.customSystemPrompt,
             });
             processStreamEvents(stream, aiMessageId).finally(() => {
                 setIsLoading(false);
@@ -679,7 +507,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
             const errorText = `Failed to restart analysis: ${e instanceof Error ? e.message : String(e)}`;
             setError(errorText);
             setLlmStatusMessage(errorText);
-            setChatMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: errorText, isLoading: false, isError: true } : m));
+            store.updateChatMessage(aiMessageId, { text: errorText, isLoading: false, isError: true });
             setIsLoading(false);
         }
       }
@@ -687,30 +515,23 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
   };
 
   const handleExportSources = () => {
-    if (sourceAssessments.length === 0) {
+    if (store.sourceAssessments.length === 0) {
       alert("No sources have been assessed to export.");
       return;
     }
-
     const header = "| Index | Source | Usefulness Assessment | Notes | Rating (1-5) | URL |";
     const separator = "|---|---|---|---|---|---|";
-
-    const rows = sourceAssessments
-      .map(s => 
+    const rows = store.sourceAssessments.map(s => 
         `| ${s.index} | ${s.name.replace(/\|/g, '\\|')} | ${s.assessment.replace(/\|/g, '\\|')} | ${s.notes.replace(/\|/g, '\\|')} | ${s.rating} | ${s.url} |`
-      )
-      .join('\n');
-    
+      ).join('\n');
     const fullMarkdownContent = `${header}\n${separator}\n${rows}`;
-    
-    const filename = `SIFT_Sources_${(sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.md`;
-    
+    const filename = `SIFT_Sources_${(store.sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}.md`;
     downloadMarkdown(fullMarkdownContent, filename);
     setLlmStatusMessage("Source list exported successfully as Markdown.");
   };
 
   const handleExportReport = async (format: 'md' | 'pdf' | 'substack') => {
-    if (chatMessages.length === 0) {
+    if (store.chatMessages.length === 0) {
       alert("No session content to export.");
       return;
     }
@@ -718,21 +539,16 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     setLlmStatusMessage("Generating final report...");
     setError(null);
 
-    const transcript = chatMessages
-      .filter(m => !m.isLoading && !m.isError)
-      .map(m => `--- MESSAGE FROM: ${m.sender.toUpperCase()} (${new Date(m.timestamp).toLocaleString()}) ---\n\n${m.text}`)
-      .join('\n\n');
+    const transcript = store.chatMessages.filter(m => !m.isLoading && !m.isError)
+      .map(m => `--- MESSAGE FROM: ${m.sender.toUpperCase()} (${new Date(m.timestamp).toLocaleString()}) ---\n\n${m.text}`).join('\n\n');
 
     let sourceAssessmentsTable = 'No sources were formally assessed in this session.';
-    if (sourceAssessments.length > 0) {
+    if (store.sourceAssessments.length > 0) {
       const header = `| Index | Source | Usefulness Assessment | Notes | Rating (1-5) |\n|---|---|---|---|---|`;
-      const rows = sourceAssessments.map(s => 
-        `| ${s.index} | [${s.name}](${s.url}) | ${s.assessment.replace(/\|/g, '\\|')} | ${s.notes.replace(/\|/g, '\\|')} | ${s.rating} |`
-      ).join('\n');
+      const rows = store.sourceAssessments.map(s => `| ${s.index} | [${s.name}](${s.url}) | ${s.assessment.replace(/\|/g, '\\|')} | ${s.notes.replace(/\|/g, '\\|')} | ${s.rating} |`).join('\n');
       sourceAssessmentsTable = `${header}\n${rows}`;
     }
     
-    // For PDF, open a new window immediately to avoid pop-up blockers.
     let printWindow: Window | null = null;
     if (format === 'pdf') {
         printWindow = window.open('', '_blank');
@@ -747,37 +563,24 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
     }
 
     try {
-        const reportPrompt = REPORT_GENERATION_PROMPT
-            .replace('[TRANSCRIPT]', transcript)
-            .replace('[SOURCE_ASSESSMENTS_TABLE]', sourceAssessmentsTable);
-
-        const service = new AgenticApiService(selectedProviderKey, selectedModelId, userApiKeys, false, availableModels); // No preprocessing for report
+        const reportPrompt = REPORT_GENERATION_PROMPT.replace('[TRANSCRIPT]', transcript).replace('[SOURCE_ASSESSMENTS_TABLE]', sourceAssessmentsTable);
+        const service = new AgenticApiService(store.selectedProviderKey, store.selectedModelId, store.userApiKeys, false, availableModels);
         const stream = service.streamSiftAnalysis({
-            isInitialQuery: false,
-            query: reportPrompt,
-            fullChatHistory: [], 
-            modelConfigParams: { ...modelConfigParams, temperature: 0.2 },
-            signal: new AbortController().signal,
-            systemPromptOverride: REPORT_SYSTEM_PROMPT,
+            isInitialQuery: false, query: reportPrompt, fullChatHistory: [], modelConfigParams: { ...store.modelConfigParams, temperature: 0.2 },
+            signal: new AbortController().signal, systemPromptOverride: REPORT_SYSTEM_PROMPT,
         });
 
         let reportText = '';
         for await (const event of stream) {
-            if (event.type === 'chunk') {
-                reportText += event.text;
-            } else if (event.type === 'final') {
-                reportText = event.fullText;
-            } else if (event.type === 'error') {
-                throw new Error(event.error);
-            }
+            if (event.type === 'chunk') reportText += event.text;
+            else if (event.type === 'final') reportText = event.fullText;
+            else if (event.type === 'error') throw new Error(event.error);
         }
       
-      if (!reportText.trim()) {
-        throw new Error("The AI returned an empty report.");
-      }
+      if (!reportText.trim()) throw new Error("The AI returned an empty report.");
 
-      const filenameBase = `SIFT_Report_${(sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}`;
-      const reportTitle = `## Report: ${sessionTopic || 'Untitled Session'}\n\n**Generated:** ${new Date().toLocaleString()}\n\n---\n\n`;
+      const filenameBase = `SIFT_Report_${(store.sessionTopic || 'Untitled').replace(/\s/g, '_')}_${new Date().toISOString().split('T')[0]}`;
+      const reportTitle = `## Report: ${store.sessionTopic || 'Untitled Session'}\n\n**Generated:** ${new Date().toLocaleString()}\n\n---\n\n`;
       const fullReportMarkdown = reportTitle + reportText;
 
       if (format === 'md') {
@@ -798,9 +601,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
       const errorText = `Failed to generate report: ${e instanceof Error ? e.message : String(e)}`;
       setError(errorText);
       setLlmStatusMessage(errorText);
-      if (printWindow && !printWindow.closed) {
-          printWindow.document.body.innerHTML = `<h1>Error</h1><p>${errorText}</p><p>You may close this tab.</p>`;
-      }
+      if (printWindow && !printWindow.closed) printWindow.document.body.innerHTML = `<h1>Error</h1><p>${errorText}</p><p>You may close this tab.</p>`;
     } finally {
       setIsGeneratingReport(false);
     }
@@ -808,19 +609,14 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
 
   const handleSourceIndexClick = (index: number) => {
     setIsToolsMenuOpen(true);
-
-    // Delay scroll to allow menu to open and render
     setTimeout(() => {
         const container = sourceListContainerRef.current;
         if (!container) return;
-
         const element = container.querySelector(`#source-item-${index}`);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             element.classList.add('highlight-source');
-            setTimeout(() => {
-                element.classList.remove('highlight-source');
-            }, 2000); // Highlight for 2 seconds
+            setTimeout(() => element.classList.remove('highlight-source'), 2000);
         }
     }, 100);
   };
@@ -884,7 +680,7 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                             isGeneratingReport={isGeneratingReport}
                             onExportReport={handleExportReport}
                             onExportSources={handleExportSources}
-                            sourceAssessments={sourceAssessments}
+                            sourceAssessments={store.sourceAssessments}
                             onSelectSource={setSelectedSourceForModal}
                             sourceListContainerRef={sourceListContainerRef}
                             onClose={() => setIsToolsMenuOpen(false)}
@@ -924,17 +720,17 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                       <SessionConfigurationView 
                           isApiKeyValid={isApiKeyValid}
                           onOpenSettings={() => setIsSettingsModalOpen(true)}
-                          sessionTopic={sessionTopic}
-                          setSessionTopic={setSessionTopic}
-                          sessionContext={sessionContext}
-                          setSessionContext={setSessionContext}
-                          sessionFiles={sessionFiles}
-                          setSessionFiles={setSessionFiles}
-                          sessionUrls={sessionUrls}
-                          setSessionUrls={setSessionUrls}
+                          sessionTopic={store.sessionTopic}
+                          setSessionTopic={store.setSessionTopic}
+                          sessionContext={store.sessionContext}
+                          setSessionContext={store.setSessionContext}
+                          sessionFiles={store.sessionFiles}
+                          setSessionFiles={store.setSessionFiles}
+                          sessionUrls={store.sessionUrls}
+                          setSessionUrls={store.setSessionUrls}
                           onStartSession={handleStartSession}
                           onRestoreSession={handleRestoreSession}
-                          showRestoreButton={savedSessionExists && chatMessages.length === 0}
+                          showRestoreButton={savedSessionExists && store.chatMessages.length === 0}
                       />
                     )}
                     {configTab === 'about' && <AboutContent />}
@@ -945,15 +741,15 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
                 <div className="flex-grow min-w-0 h-[75vh]"> 
                   <ChatInterface
                     ref={chatContainerRef}
-                    messages={chatMessages}
-                    sourceAssessments={sourceAssessments}
+                    messages={store.chatMessages}
+                    sourceAssessments={store.sourceAssessments}
                     onSendMessage={handleSendChatMessage}
                     isLoading={isLoading || isGeneratingReport}
                     onStopGeneration={handleStopGeneration}
                     onRestartGeneration={handleRestartGeneration}
                     onSourceIndexClick={handleSourceIndexClick}
                     onToggleLiveConversation={() => setIsLiveConversationOpen(true)}
-                    canRestart={originalQueryForRestart !== null && !isLoading}
+                    canRestart={store.originalQueryForRestart !== null && !isLoading}
                     supportsWebSearch={selectedModelConfig?.supportsGoogleSearch ?? false}
                     llmStatusMessage={llmStatusMessage}
                     saveStatus={saveStatus}
@@ -973,22 +769,22 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
         <SettingsModal
             isOpen={isSettingsModalOpen}
             onClose={() => setIsSettingsModalOpen(false)}
-            userApiKeys={userApiKeys}
-            setUserApiKeys={setUserApiKeys}
-            apiKeyValidation={apiKeyValidation}
-            setApiKeyValidation={setApiKeyValidation}
-            selectedProviderKey={selectedProviderKey}
-            setSelectedProviderKey={setSelectedProviderKey}
-            enableGeminiPreprocessing={enableGeminiPreprocessing}
-            setEnableGeminiPreprocessing={setEnableGeminiPreprocessing}
+            userApiKeys={store.userApiKeys}
+            setUserApiKeys={store.setUserApiKeys}
+            apiKeyValidation={store.apiKeyValidation}
+            setApiKeyValidation={store.setApiKeyValidation}
+            selectedProviderKey={store.selectedProviderKey}
+            setSelectedProviderKey={store.setSelectedProviderKey}
+            enableGeminiPreprocessing={store.enableGeminiPreprocessing}
+            setEnableGeminiPreprocessing={store.setEnableGeminiPreprocessing}
             availableModels={availableModels}
             onModelsUpdate={handleModelsUpdate}
-            selectedModelId={selectedModelId}
-            onSelectModelId={setSelectedModelId}
-            modelConfigParams={modelConfigParams}
-            onModelConfigParamChange={setModelConfigParams}
-            customSystemPrompt={customSystemPrompt}
-            setCustomSystemPrompt={setCustomSystemPrompt}
+            selectedModelId={store.selectedModelId}
+            onSelectModelId={store.setSelectedModelId}
+            modelConfigParams={store.modelConfigParams}
+            onModelConfigParamChange={store.setModelConfigParams}
+            customSystemPrompt={store.customSystemPrompt}
+            setCustomSystemPrompt={store.setCustomSystemPrompt}
         />
       )}
        {selectedSourceForModal && (
@@ -999,9 +795,9 @@ ${sessionUrls.trim().length > 0 ? `**Context URLs:**\n${sessionUrls.trim()}` : '
       )}
       {isLiveConversationOpen && (
         <LiveConversationView 
-            userApiKeys={userApiKeys}
+            userApiKeys={store.userApiKeys}
             onOpenSettings={() => setIsSettingsModalOpen(true)}
-            apiKeyValidation={apiKeyValidation}
+            apiKeyValidation={store.apiKeyValidation}
             onClose={() => setIsLiveConversationOpen(false)}
         />
       )}

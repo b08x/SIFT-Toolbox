@@ -1,9 +1,8 @@
-
-
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import { AIProvider, ApiKeyValidationStates, LiveTranscript } from '../types.ts';
+import { useAppStore } from '../store.ts';
 
 // --- Audio Helper Functions (from Gemini API documentation) ---
 
@@ -70,6 +69,8 @@ export const LiveConversationView: React.FC<LiveConversationViewProps> = ({ user
     const [conversationState, setConversationState] = useState<'idle' | 'connecting' | 'active' | 'error'>('idle');
     const [transcripts, setTranscripts] = useState<LiveTranscript[]>([]);
     const [currentError, setCurrentError] = useState<string | null>(null);
+
+    const { chatMessages, sessionTopic } = useAppStore();
 
     const transcriptContainerRef = useRef<HTMLDivElement>(null);
     const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
@@ -149,6 +150,21 @@ export const LiveConversationView: React.FC<LiveConversationViewProps> = ({ user
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             micStreamRef.current = stream;
+
+            const transcriptSummary = chatMessages.length > 0 ? chatMessages
+                .filter(m => !m.isLoading && !m.isError && m.text.trim())
+                .map(m => `${m.sender === 'user' ? 'User' : 'SIFT Assistant'}: ${m.text}`)
+                .join('\n\n')
+                : "No text session has occurred yet.";
+            
+            const systemInstruction = `You are a helpful voice assistant. The user has been conducting a SIFT analysis on the topic of '${sessionTopic || 'the provided materials'}'. The following is the transcript of their text-based session. You are now in a live voice conversation to discuss this analysis. Your main goal is to answer the user's spoken questions about the session, summarize findings, or discuss the sources based on the provided transcript.
+
+--- PREVIOUS SESSION TRANSCRIPT ---
+${transcriptSummary}
+--- END TRANSCRIPT ---
+
+Start the conversation by greeting the user, then provide a concise, one or two-sentence summary of the current state of the SIFT analysis based on the provided transcript. After the summary, ask how you can help them further with the investigation.`;
+
 
             const ai = new GoogleGenAI({ apiKey });
 
@@ -252,6 +268,7 @@ export const LiveConversationView: React.FC<LiveConversationViewProps> = ({ user
                     speechConfig: {
                         voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
                     },
+                    systemInstruction: systemInstruction,
                 },
             });
             sessionPromiseRef.current = sessionPromise;
