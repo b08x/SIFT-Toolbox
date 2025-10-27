@@ -35,7 +35,7 @@ interface AppStateActions {
   updateSourceAssessments: (checkedAssessments: SourceAssessment[]) => void;
   setSelectedProviderKey: (provider: AIProvider) => void;
   setSelectedModelId: (modelId: string) => void;
-  setModelConfigParams: (params: ConfigurableParams) => void;
+  setModelConfigParams: (params: ConfigurableParams | ((prevState: ConfigurableParams) => ConfigurableParams)) => void;
   setEnableGeminiPreprocessing: (enabled: boolean) => void;
   setUserApiKeys: (keys: { [key in AIProvider]?: string }) => void;
   setApiKeyValidation: (validation: ApiKeyValidationStates | ((prevState: ApiKeyValidationStates) => ApiKeyValidationStates)) => void;
@@ -79,7 +79,24 @@ const initialState: AppStateProperties = {
 
 
 export const useAppStore = create<AppState>((set) => ({
-  ...initialState,
+  // FIX: Explicitly define initial state properties instead of spreading `initialState`.
+  // This resolves a TypeScript error "Spread types may only be created from object types"
+  // which can occur with complex intersection types in Zustand's `create` function.
+  chatMessages: initialState.chatMessages,
+  currentSiftQueryDetails: initialState.currentSiftQueryDetails,
+  originalQueryForRestart: initialState.originalQueryForRestart,
+  sourceAssessments: initialState.sourceAssessments,
+  selectedProviderKey: initialState.selectedProviderKey,
+  selectedModelId: initialState.selectedModelId,
+  modelConfigParams: initialState.modelConfigParams,
+  enableGeminiPreprocessing: initialState.enableGeminiPreprocessing,
+  userApiKeys: initialState.userApiKeys,
+  apiKeyValidation: initialState.apiKeyValidation,
+  customSystemPrompt: initialState.customSystemPrompt,
+  sessionTopic: initialState.sessionTopic,
+  sessionContext: initialState.sessionContext,
+  sessionFiles: initialState.sessionFiles,
+  sessionUrls: initialState.sessionUrls,
 
   setInitialState: (state) => set(state),
   
@@ -107,7 +124,13 @@ export const useAppStore = create<AppState>((set) => ({
 
   setSelectedProviderKey: (provider) => set({ selectedProviderKey: provider }),
   setSelectedModelId: (modelId) => set({ selectedModelId: modelId }),
-  setModelConfigParams: (params) => set({ modelConfigParams: params }),
+  setModelConfigParams: (params) => {
+    if (typeof params === 'function') {
+      set(state => ({ modelConfigParams: params(state.modelConfigParams) }));
+    } else {
+      set({ modelConfigParams: params });
+    }
+  },
   setEnableGeminiPreprocessing: (enabled) => set({ enableGeminiPreprocessing: enabled }),
   setUserApiKeys: (keys) => set({ userApiKeys: keys }),
   setApiKeyValidation: (validation) => {
@@ -131,14 +154,13 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setSessionUrls: (urls: string) => set({ sessionUrls: urls }),
   
-  // FIX: Removed the spread of `initialState` which was causing a TypeScript error and incorrect behavior.
-  // This now correctly resets only the session-specific state, preserving user settings.
+  // FIX: This now correctly resets only the session-specific state, preserving user settings.
   resetSession: () => set({
     chatMessages: [],
     originalQueryForRestart: null,
     currentSiftQueryDetails: null,
     sourceAssessments: [],
-    customSystemPrompt: '',
+    // customSystemPrompt is preserved as a user setting.
     sessionTopic: '',
     sessionContext: '',
     sessionFiles: [],
