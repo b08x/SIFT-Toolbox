@@ -103,7 +103,7 @@ export const useAppStore = create<AppState>((set) => ({
   addChatMessage: (message) => set((state) => ({ chatMessages: [...state.chatMessages, message] })),
   
   updateChatMessage: (id, updates) => set((state) => ({
-    chatMessages: state.chatMessages.map(msg => msg.id === id ? { ...msg, ...updates } : msg),
+    chatMessages: state.chatMessages.map(msg => msg.id === id ? Object.assign({}, msg, updates) : msg),
   })),
 
   setChatMessages: (messages) => set({ chatMessages: messages }),
@@ -114,11 +114,10 @@ export const useAppStore = create<AppState>((set) => ({
   updateSourceAssessments: (checkedAssessments) => set((state) => {
         const resultsMap = new Map(checkedAssessments.map(r => [r.url, r]));
         return {
-            sourceAssessments: state.sourceAssessments.map(assessment => 
-                resultsMap.has(assessment.url)
-                    ? { ...assessment, ...resultsMap.get(assessment.url) }
-                    : assessment
-            )
+            sourceAssessments: state.sourceAssessments.map(assessment => {
+                const updated = resultsMap.get(assessment.url);
+                return updated ? Object.assign({}, assessment, updated) : assessment;
+            })
         };
   }),
 

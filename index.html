@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SIFT Toolbox</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,700;1,400;1,700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&family=Space+Mono:ital,wght@0,700;1,400;1,700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
     <style>
       :root {
         --background: #202124;
@@ -73,7 +73,7 @@
       body {
         display: flex;
         flex-direction: column;
-        font-family: 'Space Mono', monospace;
+        font-family: Roboto, Arial, sans-serif;
       }
       #root {
         flex-grow: 1;
@@ -137,7 +137,7 @@
       .bg-border { background-color: var(--border); }
       .bg-status-error { background-color: var(--status-error); }
       .bg-status-error-20 { background-color: rgba(234, 67, 53, 0.2); }
-      .hover\\:bg-border-hover:hover { background-color: var(--text-light); }
+      .hover\:bg-border-hover:hover { background-color: var(--text-light); }
       .text-main { color: var(--text); }
       .text-light { color: var(--text-light); }
       .text-on-primary { color: var(--primary-text); }
@@ -149,9 +149,9 @@
       .border-primary { border-color: var(--primary); }
       .border-status-error { border-color: var(--status-error); }
       .accent-primary { accent-color: var(--primary); }
-      .focus\\:border-primary:focus { border-color: var(--primary); }
-      .focus\\:ring-primary:focus { --tw-ring-color: var(--primary); }
-      .focus\\:ring-status-error:focus { --tw-ring-color: var(--status-error); }
+      .focus\:border-primary:focus { border-color: var(--primary); }
+      .focus\:ring-primary:focus { --tw-ring-color: var(--primary); }
+      .focus\:ring-status-error:focus { --tw-ring-color: var(--status-error); }
       .ring-offset-main { --tw-ring-offset-color: var(--background); }
       .ring-offset-content { --tw-ring-offset-color: var(--background-secondary); }
       .placeholder-light::placeholder { color: var(--text-light); opacity: 0.7; }
