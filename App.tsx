@@ -1,9 +1,14 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatInterface } from './components/ChatInterface.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { AgenticApiService } from './services/agenticApiService.ts';
+import { SourceAssessmentModal } from './components/SourceAssessmentModal.tsx';
 import { SessionConfigurationView } from './components/SessionConfigurationView.tsx';
+import { LeftSidebar } from './components/LeftSidebar.tsx';
+import { RightSidebar } from './components/RightSidebar.tsx';
+import { AboutContent } from './components/LandingPage.tsx';
 import { LiveConversationView } from './components/LiveConversationView.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
 import { useAppStore } from './store.ts';
@@ -16,15 +21,22 @@ import {
   SourceAssessment,
   StreamEvent
 } from './types.ts';
-import { parseSourceAssessmentsFromMarkdown } from './utils/apiHelpers.ts';
+import { parseSourceAssessmentsFromMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
 
 export const App = (): React.ReactElement => {
-  const [mainView, setMainView] = useState<'config' | 'chat'>('config');
-  const [isLiveConversationOpen, setIsLiveConversationOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-
   const store = useAppStore();
+  
+  // View State
+  const [mainView, setMainView] = useState<'config' | 'chat' | 'about'>('config');
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  
+  // Modal States
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isLiveConversationOpen, setIsLiveConversationOpen] = useState(false);
+  const [selectedSourceForModal, setSelectedSourceForModal] = useState<SourceAssessment | null>(null);
 
+  // Operational State
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [llmStatusMessage, setLlmStatusMessage] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -32,13 +44,20 @@ export const App = (): React.ReactElement => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Initial setup: Load session if exists or just check for it
+  useEffect(() => {
+    if (SessionManager.hasSavedSession()) {
+        // We don't auto-restore to avoid confusing the user, 
+        // but the sidebar or config view can offer it.
+    }
+  }, []);
+
   const handleStartSession = useCallback(() => {
     if (!store.sessionTopic.trim()) {
         alert("Please enter a topic for the session.");
         return;
     }
     setMainView('chat');
-    // Trigger initial SIFT analysis if messages are empty
     if (store.chatMessages.length === 0) {
         handleSendMessage(store.sessionTopic, undefined, true);
     }
@@ -129,11 +148,16 @@ export const App = (): React.ReactElement => {
                         originalQueryReportType: event.originalQueryReportType
                     });
                     
-                    // Parse source assessments if it's a full report
                     if (event.isInitialSIFTReport) {
                         const assessments = parseSourceAssessmentsFromMarkdown(event.fullText);
                         const indexedAssessments = assessments.map((a, i) => ({ ...a, index: i + 1 }));
                         store.setSourceAssessments(indexedAssessments);
+                        
+                        // Async check links
+                        indexedAssessments.forEach(async (assessment) => {
+                            const status = await checkLinkStatus(assessment.url);
+                            store.updateSourceAssessments([{ ...assessment, linkValidationStatus: status }]);
+                        });
                     }
                     break;
             }
@@ -171,91 +195,147 @@ export const App = (): React.ReactElement => {
     }
   }, [store]);
 
-  const handleStopGeneration = useCallback(() => {
-    if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-    }
-  }, []);
+  const handleNewSession = () => {
+      if (store.chatMessages.length > 0 && !confirm("Start a new session? Current progress will be saved but cleared from the view.")) return;
+      store.resetSession();
+      setMainView('config');
+  };
+
+  const handleRestoreSession = () => {
+      const saved = SessionManager.loadSession();
+      if (saved) {
+          store.setInitialState(saved);
+          setMainView('chat');
+      }
+  };
 
   return (
-    <div className="min-h-screen bg-main text-main font-sans selection:bg-primary/30">
-      {mainView === 'config' ? (
-        <div className="max-w-4xl mx-auto py-12 px-4">
-          <SessionConfigurationView 
-             isApiKeyValid={true} // Gemini key is environmental
-             onOpenSettings={() => setIsSettingsModalOpen(true)}
-             sessionTopic={store.sessionTopic}
-             setSessionTopic={store.setSessionTopic}
-             sessionContext={store.sessionContext}
-             setSessionContext={store.setSessionContext}
-             sessionFiles={store.sessionFiles}
-             setSessionFiles={store.setSessionFiles}
-             sessionUrls={store.sessionUrls}
-             setSessionUrls={store.setSessionUrls}
-             onStartSession={handleStartSession}
-             onRestoreSession={() => {
-                 const saved = SessionManager.loadSession();
-                 if (saved) {
-                     store.setInitialState(saved);
-                     setMainView('chat');
-                 }
-             }}
-             showRestoreButton={SessionManager.hasSavedSession()}
-          />
+    <div className="flex h-screen overflow-hidden bg-main text-main font-sans">
+      {/* Left Sidebar */}
+      <LeftSidebar 
+        isOpen={isLeftSidebarOpen}
+        onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+        onNewSession={handleNewSession}
+        onOpenAbout={() => setMainView('about')}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        currentView={mainView}
+        onOpenConfig={() => setMainView('config')}
+      />
+
+      {/* Main Workspace */}
+      <main className={`flex-grow flex flex-col min-w-0 transition-all duration-300 relative`}>
+        {/* Mobile Header Toggle */}
+        <div className="md:hidden p-2 border-b border-ui flex justify-between items-center bg-content">
+            <button onClick={() => setIsLeftSidebarOpen(true)} className="p-2 text-primary-accent">
+                <span className="material-symbols-outlined">menu</span>
+            </button>
+            <h1 className="font-bold text-primary-accent">SIFT Toolbox</h1>
+            <button onClick={() => setIsRightSidebarOpen(true)} className="p-2 text-primary-accent">
+                <span className="material-symbols-outlined">analytics</span>
+            </button>
         </div>
-      ) : (
-        <div className="h-screen flex flex-col">
-          <ChatInterface 
-             messages={store.chatMessages}
-             sourceAssessments={store.sourceAssessments}
-             onSendMessage={handleSendMessage}
-             isLoading={isLoading}
-             onStopGeneration={handleStopGeneration}
-             onSourceIndexClick={() => {}}
-             onToggleLiveConversation={() => setIsLiveConversationOpen(true)}
-             llmStatusMessage={llmStatusMessage}
-             saveStatus={saveStatus}
-             lastSaveTime={lastSaveTime}
-             onSaveSession={handleSaveSession}
-          />
+
+        <div className="flex-grow overflow-hidden relative">
+            {mainView === 'config' && (
+                <div className="h-full overflow-y-auto py-8 px-4 sm:px-8 max-w-4xl mx-auto">
+                    <SessionConfigurationView 
+                        isApiKeyValid={true}
+                        onOpenSettings={() => setIsSettingsModalOpen(true)}
+                        sessionTopic={store.sessionTopic}
+                        setSessionTopic={store.setSessionTopic}
+                        sessionContext={store.sessionContext}
+                        setSessionContext={store.setSessionContext}
+                        sessionFiles={store.sessionFiles}
+                        setSessionFiles={store.setSessionFiles}
+                        sessionUrls={store.sessionUrls}
+                        setSessionUrls={store.setSessionUrls}
+                        onStartSession={handleStartSession}
+                        onRestoreSession={handleRestoreSession}
+                        showRestoreButton={SessionManager.hasSavedSession()}
+                    />
+                </div>
+            )}
+
+            {mainView === 'chat' && (
+                <ChatInterface 
+                    messages={store.chatMessages}
+                    sourceAssessments={store.sourceAssessments}
+                    onSendMessage={handleSendMessage}
+                    isLoading={isLoading}
+                    onStopGeneration={() => abortControllerRef.current?.abort()}
+                    onSourceIndexClick={(idx) => {
+                        const source = store.sourceAssessments.find(s => s.index === idx);
+                        if (source) setSelectedSourceForModal(source);
+                    }}
+                    onToggleLiveConversation={() => setIsLiveConversationOpen(true)}
+                    llmStatusMessage={llmStatusMessage}
+                    saveStatus={saveStatus}
+                    lastSaveTime={lastSaveTime}
+                    onSaveSession={handleSaveSession}
+                />
+            )}
+
+            {mainView === 'about' && (
+                <div className="h-full overflow-y-auto p-4 sm:p-8 max-w-4xl mx-auto">
+                    <AboutContent />
+                </div>
+            )}
         </div>
+      </main>
+
+      {/* Right Sidebar (Sources) */}
+      {mainView === 'chat' && (
+          <RightSidebar 
+            isOpen={isRightSidebarOpen}
+            onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+            sources={store.sourceAssessments}
+            onSelectSource={setSelectedSourceForModal}
+          />
       )}
 
+      {/* Modals */}
       {isSettingsModalOpen && (
-        <SettingsModal 
-           isOpen={isSettingsModalOpen}
-           onClose={() => setIsSettingsModalOpen(false)}
-           userApiKeys={store.userApiKeys}
-           setUserApiKeys={store.setUserApiKeys}
-           apiKeyValidation={store.apiKeyValidation}
-           setApiKeyValidation={store.setApiKeyValidation}
-           selectedProviderKey={store.selectedProviderKey}
-           setSelectedProviderKey={store.setSelectedProviderKey}
-           enableGeminiPreprocessing={store.enableGeminiPreprocessing}
-           setEnableGeminiPreprocessing={store.setEnableGeminiPreprocessing}
-           availableModels={store.availableModels}
-           onModelsUpdate={(provider, models) => {
-               store.setAvailableModels(prev => {
-                   const filtered = prev.filter(m => m.provider !== provider);
-                   return [...filtered, ...models];
-               });
-           }}
-           selectedModelId={store.selectedModelId}
-           onSelectModelId={store.setSelectedModelId}
-           modelConfigParams={store.modelConfigParams}
-           onModelConfigParamChange={store.setModelConfigParams}
-           customSystemPrompt={store.customSystemPrompt}
-           setCustomSystemPrompt={store.setCustomSystemPrompt}
-        />
+          <SettingsModal 
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            userApiKeys={store.userApiKeys}
+            setUserApiKeys={store.setUserApiKeys}
+            apiKeyValidation={store.apiKeyValidation}
+            setApiKeyValidation={store.setApiKeyValidation}
+            selectedProviderKey={store.selectedProviderKey}
+            setSelectedProviderKey={store.setSelectedProviderKey}
+            enableGeminiPreprocessing={store.enableGeminiPreprocessing}
+            setEnableGeminiPreprocessing={store.setEnableGeminiPreprocessing}
+            availableModels={store.availableModels}
+            onModelsUpdate={(provider, models) => {
+                store.setAvailableModels(prev => {
+                    const filtered = prev.filter(m => m.provider !== provider);
+                    return [...filtered, ...models];
+                });
+            }}
+            selectedModelId={store.selectedModelId}
+            onSelectModelId={store.setSelectedModelId}
+            modelConfigParams={store.modelConfigParams}
+            onModelConfigParamChange={store.setModelConfigParams}
+            customSystemPrompt={store.customSystemPrompt}
+            setCustomSystemPrompt={store.setCustomSystemPrompt}
+          />
+      )}
+
+      {selectedSourceForModal && (
+          <SourceAssessmentModal 
+            source={selectedSourceForModal}
+            onClose={() => setSelectedSourceForModal(null)}
+          />
       )}
 
       {isLiveConversationOpen && (
-        <LiveConversationView 
-           userApiKeys={store.userApiKeys}
-           onOpenSettings={() => setIsSettingsModalOpen(true)}
-           apiKeyValidation={store.apiKeyValidation}
-           onClose={() => setIsLiveConversationOpen(false)}
-        />
+          <LiveConversationView 
+            userApiKeys={store.userApiKeys}
+            onOpenSettings={() => setIsSettingsModalOpen(true)}
+            apiKeyValidation={store.apiKeyValidation}
+            onClose={() => setIsLiveConversationOpen(false)}
+          />
       )}
     </div>
   );
