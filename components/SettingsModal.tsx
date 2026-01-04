@@ -43,6 +43,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     customSystemPrompt, setCustomSystemPrompt
 }) => {
     const [isValidationLoading, setIsValidationLoading] = useState<Partial<Record<AIProvider, boolean>>>({});
+    const [isRefreshLoading, setIsRefreshLoading] = useState(false);
     const [localKeys, setLocalKeys] = useState<{ [key in AIProvider]?: string }>(userApiKeys);
     const [selectedPreset, setSelectedPreset] = useState<string>('custom');
 
@@ -62,7 +63,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (matchingPreset) {
         setSelectedPreset(matchingPreset.name);
       } else if (customSystemPrompt === '') {
-        // If the prompt is cleared, it's effectively using the default.
         setSelectedPreset('Default SIFT');
       } else {
         setSelectedPreset('custom');
@@ -77,7 +77,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (firstModel) {
             onSelectModelId(firstModel.id);
         } else {
-            onSelectModelId(''); // Clear selection if no models are available for the new provider
+            onSelectModelId(''); 
         }
     };
 
@@ -100,26 +100,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setApiKeyValidation(prev => ({ ...prev, [provider]: isValid ? 'valid' : 'invalid' }));
 
         if (isValid) {
-            try {
-                const newModels = await AgenticApiService.fetchAvailableModels(provider, key);
-                if (newModels.length > 0) {
-                    onModelsUpdate(provider, newModels);
-                } else {
-                    console.warn(`No models returned for provider ${provider}. Keeping existing list.`);
-                }
-            } catch (fetchError) {
-                console.error(`Failed to fetch models for ${provider}:`, fetchError);
-                alert(`API key is valid, but failed to fetch the model list for ${provider}. The application will use the default list.`);
-            }
+            await fetchModels(provider, key);
         } else {
             alert(`API Key validation failed for ${provider}: ${error || 'Please check the key and try again.'}`);
         }
         setIsValidationLoading(prev => ({ ...prev, [provider]: false }));
     };
 
+    const fetchModels = async (provider: AIProvider, key: string) => {
+        setIsRefreshLoading(true);
+        try {
+            const newModels = await AgenticApiService.fetchAvailableModels(provider, key);
+            if (newModels.length > 0) {
+                onModelsUpdate(provider, newModels);
+                // If current model isn't in the new list, pick the first one
+                if (!newModels.find(m => m.id === selectedModelId)) {
+                    onSelectModelId(newModels[0].id);
+                }
+            }
+        } catch (fetchError) {
+            console.error(`Failed to fetch models for ${provider}:`, fetchError);
+            alert(`Failed to fetch the model list for ${provider}. Using existing list.`);
+        } finally {
+            setIsRefreshLoading(false);
+        }
+    };
+
+    const handleRefreshModels = () => {
+        const key = selectedProviderKey === AIProvider.GOOGLE_GEMINI ? (process.env.API_KEY || '') : (localKeys[selectedProviderKey] || '');
+        if (!key && selectedProviderKey !== AIProvider.GOOGLE_GEMINI) {
+            alert("Please provide an API key first.");
+            return;
+        }
+        fetchModels(selectedProviderKey, key);
+    };
+
     const getValidationStatusUI = (provider: AIProvider) => {
         const status = apiKeyValidation[provider];
-        if (isValidationLoading[provider]) return <span className="text-xs text-primary-accent">Validating...</span>;
+        if (isValidationLoading[provider]) return <span className="text-xs text-primary-accent animate-pulse">Validating...</span>;
         if (status === 'valid') return <span className="text-xs text-status-success">Key is valid.</span>;
         if (status === 'invalid') return <span className="text-xs text-status-error">Invalid or empty key.</span>;
         return <span className="text-xs text-light/70">Key is unchecked.</span>;
@@ -139,7 +157,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         const preset = promptPresets.find(p => p.name === presetName);
         if (preset) {
-            // Special case: if default is selected, we clear the custom prompt to use the app's internal default logic
             if (preset.name === 'Default SIFT') {
                 setCustomSystemPrompt('');
             } else {
@@ -175,6 +192,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     if (!isOpen) return null;
 
+    const isCurrentProviderValidated = selectedProviderKey === AIProvider.GOOGLE_GEMINI || apiKeyValidation[selectedProviderKey] === 'valid';
+
     return (
         <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -193,14 +212,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         className="p-1 rounded-full text-light hover:bg-border hover:text-main transition-colors"
                         aria-label="Close settings"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <span className="material-symbols-outlined">close</span>
                     </button>
                 </header>
                 
                 <main className="p-6 overflow-y-auto space-y-8">
-                    {/* Section 2: AI Provider & API Keys */}
                     <section>
                         <h2 className="text-xl font-semibold text-primary-accent mb-4 border-b border-ui/50 pb-2">Language Model Provider & API Keys</h2>
                         <div className="space-y-4">
@@ -216,12 +232,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </select>
                             </div>
                             
-                            {/* Fix: API key inputs for Google Gemini removed per guidelines. process.env.API_KEY is handled automatically. */}
                             {selectedProviderKey === AIProvider.OPENAI && renderApiKeyInput(AIProvider.OPENAI, "OpenAI API Key", "Enter your OpenAI API Key")}
                             {selectedProviderKey === AIProvider.MISTRAL && renderApiKeyInput(AIProvider.MISTRAL, "Mistral API Key", "Enter your Mistral API Key")}
                             {selectedProviderKey === AIProvider.OPENROUTER && renderApiKeyInput(AIProvider.OPENROUTER, "OpenRouter API Key", "Enter your OpenRouter API Key")}
                             
-                            {/* Gemini Preprocessing option for non-Google models */}
                             {selectedProviderKey !== AIProvider.GOOGLE_GEMINI && (
                                 <div className="pt-2">
                                     <label htmlFor="gemini-preproc" className="flex items-center space-x-2 cursor-pointer">
@@ -234,12 +248,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </section>
                     
-                    {/* Section 3: Model Configuration */}
                     <section>
                          <h2 className="text-xl font-semibold text-primary-accent mb-4 border-b border-ui/50 pb-2">Model Configuration</h2>
                          <div className="space-y-4">
                             <div>
-                                <label htmlFor="model-select-modal" className="block text-sm font-medium text-main mb-1">Model</label>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label htmlFor="model-select-modal" className="block text-sm font-medium text-main">Model</label>
+                                    <button 
+                                        onClick={handleRefreshModels}
+                                        disabled={isRefreshLoading || !isCurrentProviderValidated}
+                                        className="text-xs text-primary-accent hover:underline flex items-center disabled:opacity-50 disabled:no-underline"
+                                    >
+                                        <span className={`material-symbols-outlined text-sm mr-1 ${isRefreshLoading ? 'animate-spin' : ''}`}>refresh</span>
+                                        {isRefreshLoading ? 'Refreshing...' : 'Refresh Models'}
+                                    </button>
+                                </div>
                                 <select id="model-select-modal" value={selectedModelId} onChange={(e) => onSelectModelId(e.target.value)} className="w-full p-2 bg-main border border-ui rounded-md shadow-sm">
                                     {modelsForSelectedProvider.length > 0 ? (
                                         modelsForSelectedProvider.map(m => <option key={m.id} value={m.id}>{m.name}</option>)
@@ -268,7 +291,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </section>
                     
-                    {/* Section 4: Prompt Configuration */}
                     <section>
                         <h2 className="text-xl font-semibold text-primary-accent mb-4 border-b border-ui/50 pb-2">Prompt & Analysis Configuration</h2>
                         <div className="space-y-4">

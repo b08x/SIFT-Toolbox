@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Part } from "@google/genai";
 import OpenAI from 'openai';
 import { streamText } from 'ai';
@@ -12,7 +13,7 @@ import {
     ChatMessage,
     ReportType
 } from '../types.ts';
-import { INITIAL_MODELS_CONFIG, standardOpenAIParameters } from '../models.config.ts';
+import { INITIAL_MODELS_CONFIG, standardOpenAIParameters, standardGeminiParameters } from '../models.config.ts';
 import { getSystemPromptForSelectedModel, getTruncatedHistoryForApi } from '../utils/apiHelpers.ts';
 import { constructFullPrompt } from "../prompts.ts";
 
@@ -31,7 +32,7 @@ export class AgenticApiService {
     ) {
         this.provider = provider;
         const modelConfig = availableModels.find(m => m.id === modelId && m.provider === provider);
-        this.modelConfig = modelConfig || INITIAL_MODELS_CONFIG[0];
+        this.modelConfig = modelConfig || INITIAL_MODELS_CONFIG.find(m => m.id === modelId && m.provider === provider) || INITIAL_MODELS_CONFIG[0];
         this.initializeClients();
     }
 
@@ -71,6 +72,13 @@ export class AgenticApiService {
                     dangerouslyAllowBrowser: true,
                 });
                 await openrouter.chat.completions.create({ model: 'openai/gpt-4o-mini', messages: [{role: 'user', content: 'test'}], max_tokens: 5});
+            } else if (provider === AIProvider.MISTRAL) {
+                const mistralProvider = createMistral({ apiKey: key });
+                await streamText({
+                    model: mistralProvider('mistral-small-latest'),
+                    prompt: 'test',
+                    maxTokens: 5,
+                });
             }
             return { isValid: true };
         } catch (e: any) {
@@ -88,9 +96,10 @@ export class AgenticApiService {
                 const response = await openai.models.list();
                 return response.data
                     .filter(model => model.id.startsWith('gpt-'))
+                    .sort((a, b) => b.id.localeCompare(a.id))
                     .map(model => ({
                         id: model.id,
-                        name: model.id,
+                        name: model.id.toUpperCase(),
                         provider: AIProvider.OPENAI,
                         parameters: standardOpenAIParameters,
                         supportsVision: model.id.includes('4o'),
@@ -103,18 +112,36 @@ export class AgenticApiService {
                     dangerouslyAllowBrowser: true,
                 });
                 const response = await openrouter.models.list();
-                return response.data.map((model: any) => ({
-                    id: model.id,
-                    name: model.name || model.id,
-                    provider: AIProvider.OPENROUTER,
-                    parameters: standardOpenAIParameters,
-                    supportsVision: true,
-                }));
+                return response.data
+                    .filter((m: any) => !m.id.includes('dall-e') && !m.id.includes('whisper'))
+                    .map((model: any) => ({
+                        id: model.id,
+                        name: model.name || model.id,
+                        provider: AIProvider.OPENROUTER,
+                        parameters: standardOpenAIParameters,
+                        supportsVision: model.architecture?.modality?.includes('image') || model.id.includes('vision') || false,
+                    }));
+            }
+            if (provider === AIProvider.MISTRAL) {
+                const response = await fetch('https://api.mistral.ai/v1/models', {
+                    headers: { 'Authorization': `Bearer ${key}` }
+                });
+                if (!response.ok) throw new Error('Mistral API call failed');
+                const data = await response.json();
+                return data.data
+                    .sort((a: any, b: any) => a.id.localeCompare(b.id))
+                    .map((model: any) => ({
+                        id: model.id,
+                        name: model.id.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                        provider: AIProvider.MISTRAL,
+                        parameters: standardOpenAIParameters,
+                        supportsVision: model.id.includes('pixtral'),
+                    }));
             }
         } catch (error) {
-            console.error(`Failed to fetch models:`, error);
+            console.error(`Failed to fetch models for ${provider}:`, error);
         }
-        return [];
+        return INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
     }
 
     private constructPromptFromQuery(query: OriginalQueryInfo): { promptParts: Part[], textPrompt: string } {
@@ -179,16 +206,37 @@ export class AgenticApiService {
                     modelId: this.modelConfig.id, 
                     isInitialSIFTReport: isInitialQuery 
                 };
+            } else if (this.provider === AIProvider.MISTRAL) {
+                const mistralKey = this.userApiKeys[AIProvider.MISTRAL];
+                if (!mistralKey) throw new Error("Mistral API key not configured.");
+                
+                const mistral = createMistral({ apiKey: mistralKey });
+                const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, AIProvider.MISTRAL).openai || [];
+                
+                const { textStream } = await streamText({
+                    model: mistral(this.modelConfig.id),
+                    messages: [...history, { role: 'user', content: isInitialQuery ? (query as OriginalQueryInfo).text : (query as string) }],
+                    abortSignal: signal,
+                });
+
+                let fullText = '';
+                for await (const textPart of textStream) {
+                    fullText += textPart;
+                    yield { type: 'chunk', text: textPart };
+                }
+                yield { type: 'final', fullText, modelId: this.modelConfig.id, isInitialSIFTReport: isInitialQuery };
             } else {
-                // OpenAI / OpenRouter implementation
                 const client = this.openaiClient;
-                if (!client) throw new Error("API client not initialized.");
+                if (!client) throw new Error(`${this.provider} API client not initialized. Check your API key.`);
                 
                 const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, this.provider).openai || [];
                 const stream = await client.chat.completions.create({
                     model: this.modelConfig.id,
                     messages: [...history, { role: 'user', content: isInitialQuery ? (query as OriginalQueryInfo).text : (query as string) }],
                     stream: true,
+                    temperature: modelConfigParams.temperature as number,
+                    top_p: modelConfigParams.topP as number,
+                    max_tokens: modelConfigParams.max_tokens as number,
                 });
 
                 let fullText = '';
