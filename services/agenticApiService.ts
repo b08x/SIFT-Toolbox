@@ -87,22 +87,50 @@ export class AgenticApiService {
     }
 
     public static async fetchAvailableModels(provider: AIProvider, key: string): Promise<AIModelConfig[]> {
+        const fallback = INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
         try {
             if (provider === AIProvider.GOOGLE_GEMINI) {
-                return INITIAL_MODELS_CONFIG.filter(m => m.provider === AIProvider.GOOGLE_GEMINI);
+                // Discovery API for models often fails with restricted keys; provide a fallback to ensure high quality list
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+                if (!response.ok) {
+                    console.warn(`[Gemini] Discovery API returned ${response.status}. Using hardcoded fallback.`);
+                    return fallback;
+                }
+                const data = await response.json();
+                
+                return data.models
+                    .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
+                    .map((model: any) => {
+                        const id = model.name.split('/').pop();
+                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5');
+                        return {
+                            id: id,
+                            name: model.displayName || id,
+                            provider: AIProvider.GOOGLE_GEMINI,
+                            parameters: isGemini3 ? [
+                                ...standardGeminiParameters, 
+                                { key: 'maxOutputTokens', label: 'Max Output Tokens', type: 'slider', min: 256, max: 32768, step: 128, defaultValue: 4096, description: 'Max tokens for the response.' },
+                                { key: 'thinkingBudget', label: 'Thinking Budget', type: 'slider', min: 0, max: 32768, step: 128, defaultValue: 1024, description: 'Tokens reserved for planning.' }
+                            ] : standardGeminiParameters,
+                            supportsGoogleSearch: true,
+                            supportsVision: true,
+                            supportsThinking: isGemini3,
+                        };
+                    })
+                    .sort((a: any, b: any) => b.id.localeCompare(a.id));
             }
             if (provider === AIProvider.OPENAI) {
                 const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
                 const response = await openai.models.list();
                 return response.data
-                    .filter(model => model.id.startsWith('gpt-'))
+                    .filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1') || model.id.startsWith('o3'))
                     .sort((a, b) => b.id.localeCompare(a.id))
                     .map(model => ({
                         id: model.id,
                         name: model.id.toUpperCase(),
                         provider: AIProvider.OPENAI,
                         parameters: standardOpenAIParameters,
-                        supportsVision: model.id.includes('4o'),
+                        supportsVision: true,
                     }));
             }
             if (provider === AIProvider.OPENROUTER) {
@@ -113,13 +141,14 @@ export class AgenticApiService {
                 });
                 const response = await openrouter.models.list();
                 return response.data
-                    .filter((m: any) => !m.id.includes('dall-e') && !m.id.includes('whisper'))
+                    .filter((m: any) => !m.id.includes('dall-e') && !m.id.includes('whisper') && !m.id.includes('tts'))
+                    .sort((a: any, b: any) => (b.name || b.id).localeCompare(a.name || a.id))
                     .map((model: any) => ({
                         id: model.id,
                         name: model.name || model.id,
                         provider: AIProvider.OPENROUTER,
                         parameters: standardOpenAIParameters,
-                        supportsVision: model.architecture?.modality?.includes('image') || model.id.includes('vision') || false,
+                        supportsVision: true,
                     }));
             }
             if (provider === AIProvider.MISTRAL) {
@@ -141,7 +170,7 @@ export class AgenticApiService {
         } catch (error) {
             console.error(`Failed to fetch models for ${provider}:`, error);
         }
-        return INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
+        return fallback;
     }
 
     private constructPromptFromQuery(query: OriginalQueryInfo): { promptParts: Part[], textPrompt: string } {
@@ -149,9 +178,11 @@ export class AgenticApiService {
         const parts: Part[] = [{ text: textPromptContent }];
         if (query.files) {
             query.files.forEach(file => {
-                const [header, data] = file.base64Data.split(',');
-                const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
-                parts.push({ inlineData: { data, mimeType } });
+                if (file.base64Data) {
+                    const [header, data] = file.base64Data.split(',');
+                    const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
+                    parts.push({ inlineData: { data, mimeType } });
+                }
             });
         }
         return { promptParts: parts, textPrompt: textPromptContent };
@@ -171,12 +202,28 @@ export class AgenticApiService {
 
         try {
             if (this.provider === AIProvider.GOOGLE_GEMINI) {
-                if (!this.geminiAi) throw new Error("Gemini API Key not found.");
+                if (!this.geminiAi) throw new Error("Gemini API Client not initialized. Check your environment.");
                 
                 const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, AIProvider.GOOGLE_GEMINI).gemini || [];
+                
+                const genAIConfig: any = { 
+                    temperature: Number(modelConfigParams.temperature ?? 0.7),
+                    topP: Number(modelConfigParams.topP ?? 0.95),
+                    topK: Number(modelConfigParams.topK ?? 40),
+                };
+
+                if (modelConfigParams.maxOutputTokens) {
+                    genAIConfig.maxOutputTokens = Number(modelConfigParams.maxOutputTokens);
+                }
+
+                if (this.modelConfig.supportsThinking && modelConfigParams.thinkingBudget !== undefined) {
+                    const budget = Number(modelConfigParams.thinkingBudget);
+                    genAIConfig.thinkingConfig = { thinkingBudget: budget };
+                }
+                
                 const chat = this.geminiAi.chats.create({
                     model: this.modelConfig.id,
-                    config: { systemInstruction: systemPrompt },
+                    config: { ...genAIConfig, systemInstruction: systemPrompt, tools: [{ googleSearch: {} }] },
                     history,
                 });
 
@@ -200,15 +247,10 @@ export class AgenticApiService {
                         yield { type: 'sources', sources: chunks };
                     }
                 }
-                yield { 
-                    type: 'final', 
-                    fullText, 
-                    modelId: this.modelConfig.id, 
-                    isInitialSIFTReport: isInitialQuery 
-                };
+                yield { type: 'final', fullText, modelId: this.modelConfig.id, isInitialSIFTReport: isInitialQuery };
             } else if (this.provider === AIProvider.MISTRAL) {
                 const mistralKey = this.userApiKeys[AIProvider.MISTRAL];
-                if (!mistralKey) throw new Error("Mistral API key not configured.");
+                if (!mistralKey) throw new Error("Mistral API key not configured. Check settings.");
                 
                 const mistral = createMistral({ apiKey: mistralKey });
                 const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, AIProvider.MISTRAL).openai || [];
@@ -217,6 +259,9 @@ export class AgenticApiService {
                     model: mistral(this.modelConfig.id),
                     messages: [...history, { role: 'user', content: isInitialQuery ? (query as OriginalQueryInfo).text : (query as string) }],
                     abortSignal: signal,
+                    temperature: Number(modelConfigParams.temperature ?? 0.7),
+                    topP: Number(modelConfigParams.topP ?? 1),
+                    maxTokens: Number(modelConfigParams.max_tokens ?? 4096),
                 });
 
                 let fullText = '';
@@ -227,16 +272,16 @@ export class AgenticApiService {
                 yield { type: 'final', fullText, modelId: this.modelConfig.id, isInitialSIFTReport: isInitialQuery };
             } else {
                 const client = this.openaiClient;
-                if (!client) throw new Error(`${this.provider} API client not initialized. Check your API key.`);
+                if (!client) throw new Error(`${this.provider} API client not initialized. Check your API key in settings.`);
                 
                 const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, this.provider).openai || [];
                 const stream = await client.chat.completions.create({
                     model: this.modelConfig.id,
                     messages: [...history, { role: 'user', content: isInitialQuery ? (query as OriginalQueryInfo).text : (query as string) }],
                     stream: true,
-                    temperature: modelConfigParams.temperature as number,
-                    top_p: modelConfigParams.topP as number,
-                    max_tokens: modelConfigParams.max_tokens as number,
+                    temperature: Number(modelConfigParams.temperature ?? 0.7),
+                    top_p: Number(modelConfigParams.topP ?? 1),
+                    max_tokens: Number(modelConfigParams.max_tokens ?? 4096),
                 });
 
                 let fullText = '';
@@ -246,14 +291,10 @@ export class AgenticApiService {
                     fullText += content;
                     yield { type: 'chunk', text: content };
                 }
-                yield { 
-                    type: 'final', 
-                    fullText, 
-                    modelId: this.modelConfig.id, 
-                    isInitialSIFTReport: isInitialQuery 
-                };
+                yield { type: 'final', fullText, modelId: this.modelConfig.id, isInitialSIFTReport: isInitialQuery };
             }
         } catch (e: any) {
+            console.error("[streamSiftAnalysis] Error:", e);
             yield { type: 'error', error: e.message };
         }
     }

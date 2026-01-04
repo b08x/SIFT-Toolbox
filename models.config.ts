@@ -1,5 +1,5 @@
 
-import { AIProvider, AIModelConfig } from './types.ts';
+import { AIProvider, AIModelConfig, ModelParameter } from './types.ts';
 
 export const standardGeminiParameters: AIModelConfig['parameters'] = [
   { 
@@ -67,11 +67,35 @@ export const standardOpenAIParameters: AIModelConfig['parameters'] = [
       }
 ];
 
+// Added ModelParameter[] type here to ensure 'type' properties are correctly inferred as literals ('slider')
+// rather than broad strings, which was causing assignment errors in INITIAL_MODELS_CONFIG.
+const GEMINI_3_PARAMS: ModelParameter[] = [
+  ...standardGeminiParameters,
+  { 
+    key: 'maxOutputTokens', 
+    label: 'Max Output Tokens', 
+    type: 'slider', 
+    min: 256, 
+    max: 32768, 
+    step: 128, 
+    defaultValue: 4096,
+    description: 'Max tokens for the response. Requires setting a Thinking Budget.'
+  },
+  { 
+    key: 'thinkingBudget', 
+    label: 'Thinking Budget', 
+    type: 'slider', 
+    min: 0, 
+    max: 32768, 
+    step: 128, 
+    defaultValue: 1024,
+    description: 'Tokens reserved for planning. Must be less than Max Output Tokens.'
+  },
+];
 
 export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
   // Google Gemini Models
-   {
-    // Fix: Updated to gemini-3-pro-preview for complex reasoning tasks
+  {
     id: 'gemini-3-pro-preview',
     name: 'Gemini 3 Pro',
     provider: AIProvider.GOOGLE_GEMINI,
@@ -79,65 +103,30 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsVision: true,
     supportsUrlContext: true,
     supportsThinking: true,
-    parameters: [
-      ...standardGeminiParameters,
-      { 
-        key: 'maxOutputTokens', 
-        label: 'Max Output Tokens', 
-        type: 'slider', 
-        min: 256, 
-        max: 32768, 
-        step: 128, 
-        defaultValue: 4096,
-        description: 'Max tokens for the response. Requires setting a Thinking Budget.'
-      },
-      { 
-        key: 'thinkingBudget', 
-        label: 'Thinking Budget', 
-        type: 'slider', 
-        min: 0, 
-        max: 32768, 
-        step: 128, 
-        defaultValue: 1024,
-        description: 'Tokens reserved for planning. Must be less than Max Output Tokens.'
-      },
-    ],
+    parameters: GEMINI_3_PARAMS,
   },
   {
-    // Fix: Updated to gemini-3-flash-preview for general SIFT tasks
     id: 'gemini-3-flash-preview',
     name: 'Gemini 3 Flash',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,
     supportsThinking: true,
-    parameters: [...standardGeminiParameters],
+    parameters: GEMINI_3_PARAMS,
   },
   {
-    id: 'aqa',
-    name: 'AQA (Attributed Q&A)',
+    id: 'gemini-flash-lite-latest',
+    name: 'Gemini Flash Lite',
     provider: AIProvider.GOOGLE_GEMINI,
-    supportsGoogleSearch: true, // AQA is grounded by nature
-    supportsVision: false, 
-    parameters: [
-        { 
-            key: 'temperature', 
-            label: 'Temperature', 
-            type: 'slider', 
-            min: 0, 
-            max: 1, 
-            step: 0.01, 
-            defaultValue: 0.7,
-            description: 'Controls randomness. AQA is designed for factual answers.'
-        }
-    ],
-    defaultSystemPrompt: "You are a question-answering agent. Your answer must be based on the provided context."
+    supportsGoogleSearch: true,
+    supportsVision: true,
+    parameters: standardGeminiParameters,
   },
 
   // Mistral Models
   {
-    id: 'mistral-large-2411',
-    name: 'Mistral Large 2411',
+    id: 'mistral-large-latest',
+    name: 'Mistral Large',
     provider: AIProvider.MISTRAL,
     supportsGoogleSearch: false,
     supportsVision: false,
@@ -145,24 +134,16 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     parameters: [...standardOpenAIParameters],
   },
   {
-    id: 'magistral-medium-2506',
-    name: 'Mistral Medium 2506',
-    provider: AIProvider.MISTRAL,
-    supportsGoogleSearch: false,
-    supportsVision: false,
-    parameters: [...standardOpenAIParameters],
-  },
-   {
-    id: 'mistral-small-2506',
-    name: 'Mistral Small 2506',
+    id: 'mistral-medium-latest',
+    name: 'Mistral Medium',
     provider: AIProvider.MISTRAL,
     supportsGoogleSearch: false,
     supportsVision: false,
     parameters: [...standardOpenAIParameters],
   },
   {
-    id: 'open-mistral-nemo',
-    name: 'Mistral Nemo 12B',
+    id: 'mistral-small-latest',
+    name: 'Mistral Small',
     provider: AIProvider.MISTRAL,
     supportsGoogleSearch: false,
     supportsVision: false,
@@ -180,28 +161,21 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     parameters: [...standardOpenAIParameters],
   },
   {
-    id: 'gpt-4-turbo',
-    name: 'GPT-4 Turbo (via OpenAI)',
+    id: 'o1-preview',
+    name: 'o1 Preview (via OpenAI)',
     provider: AIProvider.OPENAI,
     supportsGoogleSearch: false,
     supportsVision: true,
-    parameters: [...standardOpenAIParameters],
-  },
-  {
-    id: 'gpt-3.5-turbo',
-    name: 'GPT-3.5 Turbo (via OpenAI)',
-    provider: AIProvider.OPENAI,
-    supportsGoogleSearch: false,
-    supportsVision: false, 
+    supportsThinking: true,
     parameters: [...standardOpenAIParameters],
   },
 
-  // OpenRouter Models - Example list
+  // OpenRouter Models
   {
     id: 'openai/gpt-4o-mini',
     name: 'GPT-4o Mini (via OpenRouter)',
     provider: AIProvider.OPENROUTER,
-    supportsGoogleSearch: false, // Relies on Gemini pre-processing for search
+    supportsGoogleSearch: false,
     supportsVision: true,
     parameters: [...standardOpenAIParameters],
   },
@@ -212,39 +186,6 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsGoogleSearch: false,
     supportsVision: true,
     supportsThinking: true,
-    parameters: [...standardOpenAIParameters],
-  },
-  {
-    id: 'deepseek/deepseek-chat-v3-0324:free',
-    name: 'DeepSeek: DeepSeek V3 0324 (free) (via OpenRouter)',
-    provider: AIProvider.OPENROUTER,
-    supportsGoogleSearch: false,
-    supportsVision: true,
-    supportsThinking: true,
-    parameters: [...standardOpenAIParameters],
-  },
-  {
-    id: 'google/gemini-2.5-flash-preview-05-20:thinking',
-    name: 'Gemini 2.5 Flash Preview Thinking (via OpenRouter)',
-    provider: AIProvider.OPENROUTER,
-    supportsGoogleSearch: false,
-    supportsVision: true,
-    parameters: [...standardOpenAIParameters],
-  },
-  {
-    id: 'google/gemini-2.5-flash-preview-05-20',
-    name: 'Gemini 2.5 Flash Preview (via OpenRouter)',
-    provider: AIProvider.OPENROUTER,
-    supportsGoogleSearch: false,
-    supportsVision: true,
-    parameters: [...standardOpenAIParameters],
-  },
-  {
-    id: 'google/gemini-2.5-flash-lite-preview-06-17',
-    name: 'Gemini 2.5 Flash Lite Preview (via OpenRouter)',
-    provider: AIProvider.OPENROUTER,
-    supportsGoogleSearch: false,
-    supportsVision: true,
     parameters: [...standardOpenAIParameters],
   },
 ];

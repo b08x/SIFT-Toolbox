@@ -44,12 +44,29 @@ export const App = (): React.ReactElement => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Initial setup: Load session if exists or just check for it
+  // Initial setup: Load session if exists and auto-fetch Gemini models
   useEffect(() => {
     if (SessionManager.hasSavedSession()) {
-        // We don't auto-restore to avoid confusing the user, 
-        // but the sidebar or config view can offer it.
+        // Option to restore handled by sidebar/view
     }
+    
+    const initGeminiModels = async () => {
+        const apiKey = process.env.API_KEY;
+        if (apiKey) {
+            try {
+                const models = await AgenticApiService.fetchAvailableModels(AIProvider.GOOGLE_GEMINI, apiKey);
+                if (models.length > 0) {
+                    store.setAvailableModels(prev => {
+                        const filtered = prev.filter(m => m.provider !== AIProvider.GOOGLE_GEMINI);
+                        return [...filtered, ...models];
+                    });
+                }
+            } catch (e) {
+                console.error("Auto-fetch Gemini models failed:", e);
+            }
+        }
+    };
+    initGeminiModels();
   }, []);
 
   const handleStartSession = useCallback(() => {
