@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatInterface } from './components/ChatInterface.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
@@ -28,8 +28,8 @@ export const App = (): React.ReactElement => {
   
   // View State
   const [mainView, setMainView] = useState<'config' | 'chat' | 'about'>('config');
-  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(window.innerWidth >= 768);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(window.innerWidth >= 1280);
   
   // Modal States
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -44,12 +44,8 @@ export const App = (): React.ReactElement => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Initial setup: Load session if exists and auto-fetch Gemini models
+  // Initial setup: auto-fetch Gemini models if API key exists
   useEffect(() => {
-    if (SessionManager.hasSavedSession()) {
-        // Option to restore handled by sidebar/view
-    }
-    
     const initGeminiModels = async () => {
         const apiKey = process.env.API_KEY;
         if (apiKey) {
@@ -62,7 +58,7 @@ export const App = (): React.ReactElement => {
                     });
                 }
             } catch (e) {
-                console.error("Auto-fetch Gemini models failed:", e);
+                console.warn("Auto-fetch Gemini models failed during initialization:", e);
             }
         }
     };
@@ -75,6 +71,9 @@ export const App = (): React.ReactElement => {
         return;
     }
     setMainView('chat');
+    // Auto-close sidebar on mobile after starting
+    if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+    
     if (store.chatMessages.length === 0) {
         handleSendMessage(store.sessionTopic, undefined, true);
     }
@@ -212,19 +211,28 @@ export const App = (): React.ReactElement => {
     }
   }, [store]);
 
-  const handleNewSession = () => {
-      if (store.chatMessages.length > 0 && !confirm("Start a new session? Current progress will be saved but cleared from the view.")) return;
+  const handleNewSession = useCallback(() => {
+      if (store.chatMessages.length > 0) {
+          if (!window.confirm("Start a new session? Current progress will be saved but cleared from the view.")) return;
+      }
       store.resetSession();
       setMainView('config');
-  };
+      if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+  }, [store]);
 
-  const handleRestoreSession = () => {
+  const handleRestoreSession = useCallback(() => {
       const saved = SessionManager.loadSession();
       if (saved) {
           store.setInitialState(saved);
           setMainView('chat');
+          if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
       }
-  };
+  }, [store]);
+
+  const handleNavClick = useCallback((view: 'config' | 'chat' | 'about') => {
+    setMainView(view);
+    if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-main text-main font-sans">
@@ -233,21 +241,24 @@ export const App = (): React.ReactElement => {
         isOpen={isLeftSidebarOpen}
         onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
         onNewSession={handleNewSession}
-        onOpenAbout={() => setMainView('about')}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenAbout={() => handleNavClick('about')}
+        onOpenSettings={() => {
+            setIsSettingsModalOpen(true);
+            if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+        }}
         currentView={mainView}
-        onOpenConfig={() => setMainView('config')}
+        onOpenConfig={() => handleNavClick('config')}
       />
 
       {/* Main Workspace */}
       <main className={`flex-grow flex flex-col min-w-0 transition-all duration-300 relative`}>
         {/* Mobile Header Toggle */}
         <div className="md:hidden p-2 border-b border-ui flex justify-between items-center bg-content">
-            <button onClick={() => setIsLeftSidebarOpen(true)} className="p-2 text-primary-accent">
+            <button onClick={() => setIsLeftSidebarOpen(true)} className="p-2 text-primary-accent" aria-label="Open sidebar">
                 <span className="material-symbols-outlined">menu</span>
             </button>
             <h1 className="font-bold text-primary-accent">SIFT Toolbox</h1>
-            <button onClick={() => setIsRightSidebarOpen(true)} className="p-2 text-primary-accent">
+            <button onClick={() => setIsRightSidebarOpen(true)} className="p-2 text-primary-accent" aria-label="Open sources">
                 <span className="material-symbols-outlined">analytics</span>
             </button>
         </div>
