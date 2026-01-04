@@ -1,3 +1,4 @@
+
 import { AIProvider, AIModelConfig } from './types.ts';
 
 export const standardGeminiParameters: AIModelConfig['parameters'] = [
@@ -70,8 +71,9 @@ export const standardOpenAIParameters: AIModelConfig['parameters'] = [
 export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
   // Google Gemini Models
    {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
+    // Fix: Updated to gemini-3-pro-preview for complex reasoning tasks
+    id: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,
@@ -84,9 +86,9 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
         label: 'Max Output Tokens', 
         type: 'slider', 
         min: 256, 
-        max: 8192, 
+        max: 32768, 
         step: 128, 
-        defaultValue: 2048,
+        defaultValue: 4096,
         description: 'Max tokens for the response. Requires setting a Thinking Budget.'
       },
       { 
@@ -94,7 +96,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
         label: 'Thinking Budget', 
         type: 'slider', 
         min: 0, 
-        max: 4096, 
+        max: 32768, 
         step: 128, 
         defaultValue: 1024,
         description: 'Tokens reserved for planning. Must be less than Max Output Tokens.'
@@ -102,8 +104,9 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     ],
   },
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
+    // Fix: Updated to gemini-3-flash-preview for general SIFT tasks
+    id: 'gemini-3-flash-preview',
+    name: 'Gemini 3 Flash',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,

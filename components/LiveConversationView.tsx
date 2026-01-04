@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
@@ -6,6 +7,7 @@ import { useAppStore } from '../store.ts';
 
 // --- Audio Helper Functions (from Gemini API documentation) ---
 
+// Fix: Manually implemented encode following guidelines
 function encode(bytes: Uint8Array): string {
   let binary = '';
   const len = bytes.byteLength;
@@ -15,6 +17,7 @@ function encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+// Fix: Manually implemented decode following guidelines
 function decode(base64: string): Uint8Array {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -25,6 +28,7 @@ function decode(base64: string): Uint8Array {
   return bytes;
 }
 
+// Fix: Implemented decodeAudioData for raw PCM data handling as per guidelines
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
@@ -83,7 +87,8 @@ export const LiveConversationView: React.FC<LiveConversationViewProps> = ({ user
     const nextStartTimeRef = useRef<number>(0);
     const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
-    const isGeminiKeyValid = apiKeyValidation[AIProvider.GOOGLE_GEMINI] === 'valid';
+    // Fix: Key handled exclusively via process.env.API_KEY per guidelines.
+    const isGeminiKeyValid = true;
 
     const addTranscript = (speaker: 'user' | 'ai' | 'status', text: string, isFinal = true) => {
         setTranscripts(prev => [...prev, { id: uuidv4(), speaker, text, isFinal }]);
@@ -134,9 +139,10 @@ export const LiveConversationView: React.FC<LiveConversationViewProps> = ({ user
     }, [transcripts]);
 
     const startConversation = async () => {
-        const apiKey = userApiKeys[AIProvider.GOOGLE_GEMINI];
+        // Fix: Use process.env.API_KEY exclusively per guidelines
+        const apiKey = process.env.API_KEY;
         if (!apiKey) {
-            addTranscript('status', 'Error: Gemini API Key not found. Please set it in Settings.');
+            addTranscript('status', 'Error: Gemini API Key not found. Please ensure process.env.API_KEY is configured.');
             setCurrentError('API Key not found.');
             setConversationState('error');
             return;
@@ -182,6 +188,7 @@ Start the conversation by greeting the user, then provide a concise, one or two-
                         scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
                             const pcmBlob = createBlob(inputData);
+                            // Fix: Use sessionPromise to ensure data is sent only after connection
                             sessionPromiseRef.current?.then((session) => {
                                 session.sendRealtimeInput({ media: pcmBlob });
                             });
@@ -223,6 +230,7 @@ Start the conversation by greeting the user, then provide a concise, one or two-
                                 outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
                             }
                             const outputAudioContext = outputAudioContextRef.current;
+                            // Fix: Properly track start time for gapless audio playback
                             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContext.currentTime);
                             
                             const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContext, 24000, 1);
@@ -291,27 +299,6 @@ Start the conversation by greeting the user, then provide a concise, one or two-
     };
     
     const renderContent = () => {
-         if (!isGeminiKeyValid) {
-            return (
-                <div className="flex flex-col items-center justify-center text-center p-8 h-full">
-                    <span className="text-6xl mb-4">🔑</span>
-                    <h2 className="text-2xl font-bold text-main">Google Gemini API Key Required</h2>
-                    <p className="text-light mt-2 max-w-md">
-                        Please configure and validate a valid Google Gemini API key in the settings to use the Live Conversation feature.
-                    </p>
-                    <button 
-                        onClick={() => {
-                            onOpenSettings();
-                            onClose();
-                        }}
-                        className="mt-6 px-5 py-2.5 bg-primary hover:brightness-110 text-on-primary font-bold text-base rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-primary/50"
-                    >
-                        Open Settings
-                    </button>
-                </div>
-            );
-        }
-
         const getStatusMessage = () => {
             switch(conversationState) {
                 case 'idle': return 'Click the microphone to start a conversation.';
@@ -396,7 +383,7 @@ Start the conversation by greeting the user, then provide a concise, one or two-
                         aria-label="Close live conversation"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </header>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AgenticApiService } from '../services/agenticApiService.ts';
 import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter } from '../types.ts';
@@ -215,24 +216,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </select>
                             </div>
                             
-                            {/* Main API key for the selected provider */}
-                            {selectedProviderKey === AIProvider.GOOGLE_GEMINI && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key", "Enter your Gemini API Key", <p className="text-xs text-light mt-1">Get key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary-accent underline">Google AI Studio</a>.</p>)}
+                            {/* Fix: API key inputs for Google Gemini removed per guidelines. process.env.API_KEY is handled automatically. */}
                             {selectedProviderKey === AIProvider.OPENAI && renderApiKeyInput(AIProvider.OPENAI, "OpenAI API Key", "Enter your OpenAI API Key")}
                             {selectedProviderKey === AIProvider.MISTRAL && renderApiKeyInput(AIProvider.MISTRAL, "Mistral API Key", "Enter your Mistral API Key")}
                             {selectedProviderKey === AIProvider.OPENROUTER && renderApiKeyInput(AIProvider.OPENROUTER, "OpenRouter API Key", "Enter your OpenRouter API Key")}
                             
                             {/* Gemini Preprocessing option for non-Google models */}
                             {selectedProviderKey !== AIProvider.GOOGLE_GEMINI && (
-                                <>
-                                    <div className="pt-2">
-                                        <label htmlFor="gemini-preproc" className="flex items-center space-x-2 cursor-pointer">
-                                            <input type="checkbox" id="gemini-preproc" checked={enableGeminiPreprocessing} onChange={(e) => setEnableGeminiPreprocessing(e.target.checked)} className="h-4 w-4 rounded border-gray-500 text-primary focus:ring-primary accent-primary" />
-                                            <span className="text-sm font-medium text-main">Enable Gemini Preprocessing</span>
-                                        </label>
-                                        <p className="text-xs text-light mt-1">Use Gemini for web search grounding with non-Google models. Requires a valid Google Gemini API key below.</p>
-                                    </div>
-                                    {enableGeminiPreprocessing && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key (for Preprocessing)", "Enter your Gemini API Key")}
-                                </>
+                                <div className="pt-2">
+                                    <label htmlFor="gemini-preproc" className="flex items-center space-x-2 cursor-pointer">
+                                        <input type="checkbox" id="gemini-preproc" checked={enableGeminiPreprocessing} onChange={(e) => setEnableGeminiPreprocessing(e.target.checked)} className="h-4 w-4 rounded border-gray-500 text-primary focus:ring-primary accent-primary" />
+                                        <span className="text-sm font-medium text-main">Enable Gemini Preprocessing</span>
+                                    </label>
+                                    <p className="text-xs text-light mt-1">Use Gemini for web search grounding with non-Google models. The API key is managed automatically.</p>
+                                </div>
                             )}
                         </div>
                     </section>

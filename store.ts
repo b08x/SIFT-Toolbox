@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { 
     SavedSessionState, 
@@ -8,22 +9,19 @@ import {
     AIProvider, 
     ConfigurableParams, 
     ApiKeyValidationStates,
-    UploadedFile
+    UploadedFile,
+    AIModelConfig
 } from './types.ts';
 import { INITIAL_MODELS_CONFIG } from './models.config.ts';
 
-// FIX: Refactor AppState to separate state properties from actions to resolve a TypeScript error with spreading a complex Omit type.
-// This makes the types clearer and easier for the compiler to understand.
-
-// Define the shape of the state properties
 interface AppStateProperties extends SavedSessionState {
   sessionTopic: string;
   sessionContext: string;
   sessionFiles: UploadedFile[];
-  sessionUrls: string; // The textarea value
+  sessionUrls: string;
+  availableModels: AIModelConfig[];
 }
 
-// Define the shape of the actions (functions)
 interface AppStateActions {
   setInitialState: (state: Partial<AppStateProperties>) => void;
   addChatMessage: (message: ChatMessage) => void;
@@ -40,8 +38,8 @@ interface AppStateActions {
   setUserApiKeys: (keys: { [key in AIProvider]?: string }) => void;
   setApiKeyValidation: (validation: ApiKeyValidationStates | ((prevState: ApiKeyValidationStates) => ApiKeyValidationStates)) => void;
   setCustomSystemPrompt: (prompt: string) => void;
+  setAvailableModels: (models: AIModelConfig[] | ((prev: AIModelConfig[]) => AIModelConfig[])) => void;
   
-  // Actions for config screen state
   setSessionTopic: (topic: string) => void;
   setSessionContext: (context: string) => void;
   setSessionFiles: (files: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
@@ -50,14 +48,11 @@ interface AppStateActions {
   resetSession: () => void;
 }
 
-// Combine state and actions into the final AppState type
 type AppState = AppStateProperties & AppStateActions;
-
 
 const initialModel = INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI) || INITIAL_MODELS_CONFIG[0];
 const initialParams: ConfigurableParams = {};
 initialModel.parameters.forEach(p => initialParams[p.key] = p.defaultValue);
-
 
 const initialState: AppStateProperties = {
   chatMessages: [],
@@ -75,28 +70,11 @@ const initialState: AppStateProperties = {
   sessionContext: '',
   sessionFiles: [],
   sessionUrls: '',
+  availableModels: INITIAL_MODELS_CONFIG,
 };
 
-
 export const useAppStore = create<AppState>((set) => ({
-  // FIX: Explicitly define initial state properties instead of spreading `initialState`.
-  // This resolves a TypeScript error "Spread types may only be created from object types"
-  // which can occur with complex intersection types in Zustand's `create` function.
-  chatMessages: initialState.chatMessages,
-  currentSiftQueryDetails: initialState.currentSiftQueryDetails,
-  originalQueryForRestart: initialState.originalQueryForRestart,
-  sourceAssessments: initialState.sourceAssessments,
-  selectedProviderKey: initialState.selectedProviderKey,
-  selectedModelId: initialState.selectedModelId,
-  modelConfigParams: initialState.modelConfigParams,
-  enableGeminiPreprocessing: initialState.enableGeminiPreprocessing,
-  userApiKeys: initialState.userApiKeys,
-  apiKeyValidation: initialState.apiKeyValidation,
-  customSystemPrompt: initialState.customSystemPrompt,
-  sessionTopic: initialState.sessionTopic,
-  sessionContext: initialState.sessionContext,
-  sessionFiles: initialState.sessionFiles,
-  sessionUrls: initialState.sessionUrls,
+  ...initialState,
 
   setInitialState: (state) => set(state),
   
@@ -141,7 +119,14 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setCustomSystemPrompt: (prompt) => set({ customSystemPrompt: prompt }),
   
-  // Config screen actions
+  setAvailableModels: (models) => {
+    if (typeof models === 'function') {
+      set(state => ({ availableModels: models(state.availableModels) }));
+    } else {
+      set({ availableModels: models });
+    }
+  },
+
   setSessionTopic: (topic: string) => set({ sessionTopic: topic }),
   setSessionContext: (context: string) => set({ sessionContext: context }),
   setSessionFiles: (files) => {
@@ -153,13 +138,11 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setSessionUrls: (urls: string) => set({ sessionUrls: urls }),
   
-  // FIX: This now correctly resets only the session-specific state, preserving user settings.
   resetSession: () => set({
     chatMessages: [],
     originalQueryForRestart: null,
     currentSiftQueryDetails: null,
     sourceAssessments: [],
-    // customSystemPrompt is preserved as a user setting.
     sessionTopic: '',
     sessionContext: '',
     sessionFiles: [],
