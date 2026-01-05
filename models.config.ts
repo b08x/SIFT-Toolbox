@@ -67,8 +67,6 @@ export const standardOpenAIParameters: AIModelConfig['parameters'] = [
       }
 ];
 
-// Added ModelParameter[] type here to ensure 'type' properties are correctly inferred as literals ('slider')
-// rather than broad strings, which was causing assignment errors in INITIAL_MODELS_CONFIG.
 const GEMINI_3_PARAMS: ModelParameter[] = [
   ...standardGeminiParameters,
   { 
@@ -76,9 +74,9 @@ const GEMINI_3_PARAMS: ModelParameter[] = [
     label: 'Max Output Tokens', 
     type: 'slider', 
     min: 256, 
-    max: 32768, 
+    max: 65536, 
     step: 128, 
-    defaultValue: 4096,
+    defaultValue: 8192,
     description: 'Max tokens for the response. Requires setting a Thinking Budget.'
   },
   { 
@@ -88,7 +86,7 @@ const GEMINI_3_PARAMS: ModelParameter[] = [
     min: 0, 
     max: 32768, 
     step: 128, 
-    defaultValue: 1024,
+    defaultValue: 4096,
     description: 'Tokens reserved for planning. Must be less than Max Output Tokens.'
   },
 ];
@@ -97,7 +95,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
   // Google Gemini Models
   {
     id: 'gemini-3-pro-preview',
-    name: 'Gemini 3 Pro',
+    name: 'Google Deep Research',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,

@@ -90,7 +90,6 @@ export class AgenticApiService {
         const fallback = INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
         try {
             if (provider === AIProvider.GOOGLE_GEMINI) {
-                // Discovery API for models often fails with restricted keys; provide a fallback to ensure high quality list
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
                 if (!response.ok) {
                     console.warn(`[Gemini] Discovery API returned ${response.status}. Using hardcoded fallback.`);
@@ -102,15 +101,22 @@ export class AgenticApiService {
                     .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
                     .map((model: any) => {
                         const id = model.name.split('/').pop();
-                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5');
+                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5') || id.includes('thinking');
+                        const isPro = id.includes('pro');
+                        
+                        let displayName = model.displayName || id;
+                        if (isPro && isGemini3) {
+                            displayName = `Google Deep Research (${displayName})`;
+                        }
+
                         return {
                             id: id,
-                            name: model.displayName || id,
+                            name: displayName,
                             provider: AIProvider.GOOGLE_GEMINI,
                             parameters: isGemini3 ? [
                                 ...standardGeminiParameters, 
-                                { key: 'maxOutputTokens', label: 'Max Output Tokens', type: 'slider', min: 256, max: 32768, step: 128, defaultValue: 4096, description: 'Max tokens for the response.' },
-                                { key: 'thinkingBudget', label: 'Thinking Budget', type: 'slider', min: 0, max: 32768, step: 128, defaultValue: 1024, description: 'Tokens reserved for planning.' }
+                                { key: 'maxOutputTokens', label: 'Max Output Tokens', type: 'slider', min: 256, max: 65536, step: 128, defaultValue: 8192, description: 'Max tokens for the response.' },
+                                { key: 'thinkingBudget', label: 'Thinking Budget', type: 'slider', min: 0, max: 32768, step: 128, defaultValue: 4096, description: 'Tokens reserved for planning.' }
                             ] : standardGeminiParameters,
                             supportsGoogleSearch: true,
                             supportsVision: true,
