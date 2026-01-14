@@ -1,3 +1,4 @@
+
 import React, { useState, DragEvent } from 'react';
 import { UploadedFile } from '../types.ts';
 
@@ -84,6 +85,8 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
         setSessionFiles(sessionFiles.filter((_, index) => index !== indexToRemove));
     };
 
+    const canStart = sessionTopic.trim().length > 0 || sessionFiles.length > 0;
+
     const renderContent = () => {
         if (!isApiKeyValid) {
             return (
@@ -107,7 +110,7 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
             <div className="p-4 space-y-6">
                 <div className="space-y-4">
                     <div>
-                        <label htmlFor="session-topic" className="block text-sm font-medium text-main mb-1">Topic / Subject <span className="text-status-error">*</span></label>
+                        <label htmlFor="session-topic" className="block text-sm font-medium text-main mb-1">Topic / Subject</label>
                         <input
                             id="session-topic"
                             type="text"
@@ -116,7 +119,7 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
                             placeholder="e.g., Analysis of a viral video"
                             className="w-full p-2 bg-main border border-ui rounded-md shadow-sm"
                         />
-                        <p className="text-xs text-light mt-1">A clear, concise title for your investigation.</p>
+                        <p className="text-xs text-light mt-1">A clear, concise title or claim for your investigation.</p>
                     </div>
                     <div>
                         <label htmlFor="session-context" className="block text-sm font-medium text-main mb-1">Additional Context / Instructions</label>
@@ -128,7 +131,7 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
                             placeholder="e.g., Focus on identifying the original location and date of the video."
                             className="w-full p-2 bg-main border border-ui rounded-md shadow-sm"
                         />
-                        <p className="text-xs text-light mt-1">Provide any specific instructions for the language model.</p>
+                        <p className="text-xs text-light mt-1">Provide any specific instructions for the AI analyst.</p>
                     </div>
                         <div>
                         <label htmlFor="session-urls" className="block text-sm font-medium text-main mb-1">
@@ -181,7 +184,7 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
                                         </div>
                                         <button onClick={() => removeFile(index)} className="ml-2 text-status-error hover:brightness-110 flex-shrink-0" title="Remove file">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         </button>
                                     </div>
@@ -194,8 +197,8 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
                 <div className="mt-6 space-y-3">
                     <button
                         onClick={onStartSession}
-                        disabled={!isApiKeyValid || !sessionTopic.trim()}
-                        className="px-8 py-3 w-full bg-primary hover:brightness-110 text-on-primary font-bold text-base rounded-lg shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!isApiKeyValid || !canStart}
+                        className="px-8 py-3 w-full bg-primary hover:brightness-110 text-on-primary font-bold text-base rounded-lg shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                         title={isApiKeyValid ? "Begin the SIFT session" : "Please validate the required API key(s) in Settings."}
                     >
                         Start SIFT Session
@@ -203,7 +206,7 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
                     {showRestoreButton && (
                         <button 
                             onClick={onRestoreSession}
-                            className="w-full px-8 py-3 bg-content border border-ui hover:bg-border text-main font-bold text-sm rounded-lg shadow-xl"
+                            className="w-full px-8 py-3 bg-content border border-ui hover:bg-border text-main font-bold text-sm rounded-lg shadow-xl transition-all"
                         >
                             Restore Previous Session ↩
                         </button>

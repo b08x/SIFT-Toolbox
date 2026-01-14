@@ -17,9 +17,7 @@ import {
   ChatMessage, 
   OriginalQueryInfo, 
   AIProvider, 
-  ConfigurableParams,
   SourceAssessment,
-  StreamEvent
 } from './types.ts';
 import { parseSourceAssessmentsFromMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
 
@@ -64,20 +62,6 @@ export const App = (): React.ReactElement => {
     };
     initGeminiModels();
   }, []);
-
-  const handleStartSession = useCallback(() => {
-    if (!store.sessionTopic.trim()) {
-        alert("Please enter a topic for the session.");
-        return;
-    }
-    setMainView('chat');
-    // Auto-close sidebar on mobile after starting
-    if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
-    
-    if (store.chatMessages.length === 0) {
-        handleSendMessage(store.sessionTopic, undefined, true);
-    }
-  }, [store.sessionTopic, store.chatMessages.length]);
 
   const handleSendMessage = useCallback(async (
       text: string, 
@@ -187,6 +171,28 @@ export const App = (): React.ReactElement => {
         handleSaveSession();
     }
   }, [store, isLoading]);
+
+  const handleStartSession = useCallback(() => {
+    const hasTopic = store.sessionTopic.trim().length > 0;
+    const hasFiles = store.sessionFiles.length > 0;
+
+    if (!hasTopic && !hasFiles) {
+        alert("Please enter a topic or upload at least one file to begin.");
+        return;
+    }
+
+    setMainView('chat');
+    // Auto-close sidebar on mobile after starting
+    if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+    
+    if (store.chatMessages.length === 0) {
+        // If topic is empty but files are present, use a generic prompt to start the multimodal analysis
+        const initialText = hasTopic 
+            ? store.sessionTopic 
+            : "Please analyze the attached files using the SIFT methodology and provide a full report.";
+        handleSendMessage(initialText, undefined, true);
+    }
+  }, [store.sessionTopic, store.sessionFiles, store.chatMessages.length, handleSendMessage]);
 
   const handleSaveSession = useCallback(() => {
     setSaveStatus('saving');

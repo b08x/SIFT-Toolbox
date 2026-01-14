@@ -43,7 +43,7 @@ export const standardOpenAIParameters: AIModelConfig['parameters'] = [
         max: 2, 
         step: 0.01, 
         defaultValue: 0.7,
-        description: 'Controls randomness. Higher values like 0.8 will make the output more random.'
+        description: 'Controls randomness.'
       },
       { 
         key: 'topP', 
@@ -53,7 +53,7 @@ export const standardOpenAIParameters: AIModelConfig['parameters'] = [
         max: 1, 
         step: 0.01, 
         defaultValue: 1,
-        description: 'Nucleus sampling. Model considers results of tokens with top_p probability mass.'
+        description: 'Nucleus sampling.'
       },
       {
         key: 'max_tokens',
@@ -63,7 +63,7 @@ export const standardOpenAIParameters: AIModelConfig['parameters'] = [
         max: 4096, 
         step: 50,
         defaultValue: 4096, 
-        description: 'Maximum number of tokens to generate in the completion.'
+        description: 'Maximum generation length.'
       }
 ];
 
@@ -76,8 +76,8 @@ const GEMINI_3_PARAMS: ModelParameter[] = [
     min: 256, 
     max: 65536, 
     step: 128, 
-    defaultValue: 8192,
-    description: 'Max tokens for the response. Requires setting a Thinking Budget.'
+    defaultValue: 16384,
+    description: 'Max tokens for response (Final Output).'
   },
   { 
     key: 'thinkingBudget', 
@@ -86,13 +86,13 @@ const GEMINI_3_PARAMS: ModelParameter[] = [
     min: 0, 
     max: 32768, 
     step: 128, 
-    defaultValue: 4096,
-    description: 'Tokens reserved for planning. Must be less than Max Output Tokens.'
+    defaultValue: 8192,
+    description: 'Tokens for reasoning. Must be less than Max Output.'
   },
 ];
 
 export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
-  // Google Gemini Models
+  // Google Gemini Models - Optimized for Gemini 3
   {
     id: 'gemini-3-pro-preview',
     name: 'Google Deep Research',
@@ -131,22 +131,6 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsThinking: true,
     parameters: [...standardOpenAIParameters],
   },
-  {
-    id: 'mistral-medium-latest',
-    name: 'Mistral Medium',
-    provider: AIProvider.MISTRAL,
-    supportsGoogleSearch: false,
-    supportsVision: false,
-    parameters: [...standardOpenAIParameters],
-  },
-  {
-    id: 'mistral-small-latest',
-    name: 'Mistral Small',
-    provider: AIProvider.MISTRAL,
-    supportsGoogleSearch: false,
-    supportsVision: false,
-    parameters: [...standardOpenAIParameters],
-  },
   
   // OpenAI Models
   {
@@ -169,14 +153,6 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
   },
 
   // OpenRouter Models
-  {
-    id: 'openai/gpt-4o-mini',
-    name: 'GPT-4o Mini (via OpenRouter)',
-    provider: AIProvider.OPENROUTER,
-    supportsGoogleSearch: false,
-    supportsVision: true,
-    parameters: [...standardOpenAIParameters],
-  },
   {
     id: 'anthropic/claude-3.5-sonnet',
     name: 'Claude 3.5 Sonnet (via OpenRouter)',

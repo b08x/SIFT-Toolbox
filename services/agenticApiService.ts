@@ -1,8 +1,6 @@
 
-import { GoogleGenAI, Part } from "@google/genai";
+import { GoogleGenAI, Part, GenerateContentResponse, Content } from "@google/genai";
 import OpenAI from 'openai';
-import { streamText } from 'ai';
-import { createMistral } from '@ai-sdk/mistral';
 import { 
     AIProvider, 
     GroundingChunk,
@@ -11,7 +9,8 @@ import {
     ConfigurableParams,
     OriginalQueryInfo,
     ChatMessage,
-    ReportType
+    ReportType,
+    UploadedFile
 } from '../types.ts';
 import { INITIAL_MODELS_CONFIG, standardOpenAIParameters, standardGeminiParameters } from '../models.config.ts';
 import { getSystemPromptForSelectedModel, getTruncatedHistoryForApi } from '../utils/apiHelpers.ts';
@@ -40,6 +39,7 @@ export class AgenticApiService {
         const geminiKey = process.env.API_KEY;
         const openaiKey = this.userApiKeys[AIProvider.OPENAI];
         const openrouterKey = this.userApiKeys[AIProvider.OPENROUTER];
+        const mistralKey = this.userApiKeys[AIProvider.MISTRAL];
         
         if (geminiKey) {
             this.geminiAi = new GoogleGenAI({ apiKey: geminiKey });
@@ -54,45 +54,57 @@ export class AgenticApiService {
                 dangerouslyAllowBrowser: true,
             });
         }
+        if (this.provider === AIProvider.MISTRAL && mistralKey) {
+             this.openaiClient = new OpenAI({
+                baseURL: 'https://api.mistral.ai/v1',
+                apiKey: mistralKey,
+                dangerouslyAllowBrowser: true,
+            });
+        }
     }
     
     public static async validateApiKey(provider: AIProvider, key: string): Promise<{ isValid: boolean, error?: string }> {
-        if (!key.trim()) return { isValid: false, error: 'API Key cannot be empty.' };
+        if (!key || !key.trim()) return { isValid: false, error: 'API Key cannot be empty.' };
         try {
             if (provider === AIProvider.GOOGLE_GEMINI) {
                 const ai = new GoogleGenAI({ apiKey: key });
-                await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: 'test' });
+                await ai.models.generateContent({ 
+                    model: 'gemini-3-flash-preview', 
+                    contents: [{ parts: [{ text: 'Ping' }] }] 
+                });
             } else if (provider === AIProvider.OPENAI) {
                 const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
-                await openai.chat.completions.create({ model: 'gpt-3.5-turbo', messages: [{role: 'user', content: 'test'}], max_tokens: 5});
+                await openai.models.list();
             } else if (provider === AIProvider.OPENROUTER) {
                 const openrouter = new OpenAI({
                     baseURL: 'https://openrouter.ai/api/v1',
                     apiKey: key,
                     dangerouslyAllowBrowser: true,
                 });
-                await openrouter.chat.completions.create({ model: 'openai/gpt-4o-mini', messages: [{role: 'user', content: 'test'}], max_tokens: 5});
+                await openrouter.models.list();
             } else if (provider === AIProvider.MISTRAL) {
-                const mistralProvider = createMistral({ apiKey: key });
-                await streamText({
-                    model: mistralProvider('mistral-small-latest'),
-                    prompt: 'test',
-                    maxTokens: 5,
+                const mistral = new OpenAI({
+                    baseURL: 'https://api.mistral.ai/v1',
+                    apiKey: key,
+                    dangerouslyAllowBrowser: true,
                 });
+                await mistral.models.list();
             }
             return { isValid: true };
         } catch (e: any) {
-            return { isValid: false, error: e.message };
+            return { isValid: false, error: e.message || 'Validation failed.' };
         }
     }
 
-    public static async fetchAvailableModels(provider: AIProvider, key: string): Promise<AIModelConfig[]> {
+    public static async fetchAvailableModels(provider: AIProvider, apiKey: string): Promise<AIModelConfig[]> {
         const fallback = INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
-        try {
-            if (provider === AIProvider.GOOGLE_GEMINI) {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        
+        if (provider === AIProvider.GOOGLE_GEMINI) {
+            try {
+                // Use the Google Discovery endpoint to fetch models, but handle failure gracefully.
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
                 if (!response.ok) {
-                    console.warn(`[Gemini] Discovery API returned ${response.status}. Using hardcoded fallback.`);
+                    console.warn(`[Gemini] Discovery API error: ${response.status}. Using hardcoded fallback.`);
                     return fallback;
                 }
                 const data = await response.json();
@@ -101,207 +113,191 @@ export class AgenticApiService {
                     .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
                     .map((model: any) => {
                         const id = model.name.split('/').pop();
-                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5') || id.includes('thinking');
-                        const isPro = id.includes('pro');
+                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5');
+                        const isThinkingSupported = isGemini3 || id.includes('thinking');
                         
                         let displayName = model.displayName || id;
-                        if (isPro && isGemini3) {
-                            displayName = `Google Deep Research (${displayName})`;
-                        }
+                        if (id === 'gemini-3-pro-preview') displayName = 'Google Deep Research';
 
                         return {
                             id: id,
                             name: displayName,
                             provider: AIProvider.GOOGLE_GEMINI,
-                            parameters: isGemini3 ? [
+                            parameters: isThinkingSupported ? [
                                 ...standardGeminiParameters, 
-                                { key: 'maxOutputTokens', label: 'Max Output Tokens', type: 'slider', min: 256, max: 65536, step: 128, defaultValue: 8192, description: 'Max tokens for the response.' },
-                                { key: 'thinkingBudget', label: 'Thinking Budget', type: 'slider', min: 0, max: 32768, step: 128, defaultValue: 4096, description: 'Tokens reserved for planning.' }
+                                { key: 'maxOutputTokens', label: 'Max Output Tokens', type: 'slider', min: 256, max: 65536, step: 128, defaultValue: 16384, description: 'Max tokens for the response.' },
+                                { key: 'thinkingBudget', label: 'Thinking Budget', type: 'slider', min: 0, max: 32768, step: 128, defaultValue: 8192, description: 'Tokens reserved for planning.' }
                             ] : standardGeminiParameters,
                             supportsGoogleSearch: true,
                             supportsVision: true,
-                            supportsThinking: isGemini3,
+                            supportsThinking: isThinkingSupported,
                         };
                     })
                     .sort((a: any, b: any) => b.id.localeCompare(a.id));
+            } catch (e) {
+                console.warn("[Gemini] Failed to fetch models:", e);
+                return fallback;
             }
-            if (provider === AIProvider.OPENAI) {
-                const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
-                const response = await openai.models.list();
-                return response.data
-                    .filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1') || model.id.startsWith('o3'))
-                    .sort((a, b) => b.id.localeCompare(a.id))
-                    .map(model => ({
-                        id: model.id,
-                        name: model.id.toUpperCase(),
-                        provider: AIProvider.OPENAI,
-                        parameters: standardOpenAIParameters,
-                        supportsVision: true,
-                    }));
-            }
-            if (provider === AIProvider.OPENROUTER) {
-                const openrouter = new OpenAI({
-                    baseURL: 'https://openrouter.ai/api/v1',
-                    apiKey: key,
-                    dangerouslyAllowBrowser: true,
-                });
-                const response = await openrouter.models.list();
-                return response.data
-                    .filter((m: any) => !m.id.includes('dall-e') && !m.id.includes('whisper') && !m.id.includes('tts'))
-                    .sort((a: any, b: any) => (b.name || b.id).localeCompare(a.name || a.id))
-                    .map((model: any) => ({
-                        id: model.id,
-                        name: model.name || model.id,
-                        provider: AIProvider.OPENROUTER,
-                        parameters: standardOpenAIParameters,
-                        supportsVision: true,
-                    }));
-            }
-            if (provider === AIProvider.MISTRAL) {
-                const response = await fetch('https://api.mistral.ai/v1/models', {
-                    headers: { 'Authorization': `Bearer ${key}` }
-                });
-                if (!response.ok) throw new Error('Mistral API call failed');
-                const data = await response.json();
-                return data.data
-                    .sort((a: any, b: any) => a.id.localeCompare(b.id))
-                    .map((model: any) => ({
-                        id: model.id,
-                        name: model.id.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-                        provider: AIProvider.MISTRAL,
-                        parameters: standardOpenAIParameters,
-                        supportsVision: model.id.includes('pixtral'),
-                    }));
-            }
-        } catch (error) {
-            console.error(`Failed to fetch models for ${provider}:`, error);
         }
+        
         return fallback;
     }
 
-    private constructPromptFromQuery(query: OriginalQueryInfo): { promptParts: Part[], textPrompt: string } {
-        const textPromptContent = constructFullPrompt(query.text || "Analyze the provided input.", query.reportType);
-        const parts: Part[] = [{ text: textPromptContent }];
-        if (query.files) {
-            query.files.forEach(file => {
-                if (file.base64Data) {
-                    const [header, data] = file.base64Data.split(',');
-                    const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
-                    parts.push({ inlineData: { data, mimeType } });
-                }
-            });
-        }
-        return { promptParts: parts, textPrompt: textPromptContent };
-    }
-
-    async * streamSiftAnalysis(params: {
+    public async *streamSiftAnalysis(options: {
         isInitialQuery: boolean;
         query: OriginalQueryInfo | string;
         fullChatHistory: ChatMessage[];
         modelConfigParams: ConfigurableParams;
-        signal: AbortSignal;
-        command?: string;
+        signal?: AbortSignal;
         customSystemPrompt?: string;
-    }): AsyncGenerator<StreamEvent> {
-        const { isInitialQuery, query, fullChatHistory, modelConfigParams, signal, customSystemPrompt } = params;
-        const systemPrompt = getSystemPromptForSelectedModel(this.modelConfig, customSystemPrompt);
+        command?: string;
+    }): AsyncIterableIterator<StreamEvent> {
+        const { isInitialQuery, query, fullChatHistory, modelConfigParams, signal, customSystemPrompt, command } = options;
+
+        let userPrompt = '';
+        let reportType = ReportType.FULL_CHECK;
+        let files: UploadedFile[] = [];
+
+        if (isInitialQuery && typeof query !== 'string') {
+            userPrompt = constructFullPrompt(query.text || '', query.reportType);
+            reportType = query.reportType;
+            files = query.files || [];
+        } else {
+            userPrompt = typeof query === 'string' ? query : (query.text || '');
+            if (command) {
+                userPrompt = `[COMMAND: ${command}] ${userPrompt}`;
+            }
+        }
+
+        yield { type: 'status', message: 'Connecting to AI provider...' };
 
         try {
-            if (this.provider === AIProvider.GOOGLE_GEMINI) {
-                if (!this.geminiAi) throw new Error("Gemini API Client not initialized. Check your environment.");
-                
-                const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, AIProvider.GOOGLE_GEMINI).gemini || [];
-                
-                const genAIConfig: any = { 
-                    temperature: Number(modelConfigParams.temperature ?? 0.7),
-                    topP: Number(modelConfigParams.topP ?? 0.95),
-                    topK: Number(modelConfigParams.topK ?? 40),
+            if (this.provider === AIProvider.GOOGLE_GEMINI && this.geminiAi) {
+                const systemPrompt = getSystemPromptForSelectedModel(this.modelConfig, customSystemPrompt);
+                const { gemini: history } = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, AIProvider.GOOGLE_GEMINI);
+
+                const currentParts: Part[] = [];
+                for (const file of files) {
+                    const base64Data = file.base64Data.split(',')[1];
+                    currentParts.push({
+                        inlineData: {
+                            data: base64Data,
+                            mimeType: file.type
+                        }
+                    });
+                }
+                currentParts.push({ text: userPrompt });
+
+                const config: any = {
+                    systemInstruction: systemPrompt,
+                    temperature: Number(modelConfigParams.temperature),
+                    topP: Number(modelConfigParams.topP),
+                    topK: Number(modelConfigParams.topK),
                 };
 
-                if (modelConfigParams.maxOutputTokens) {
-                    genAIConfig.maxOutputTokens = Number(modelConfigParams.maxOutputTokens);
+                if (this.modelConfig.supportsGoogleSearch) {
+                    config.tools = [{ googleSearch: {} }];
                 }
 
-                if (this.modelConfig.supportsThinking && modelConfigParams.thinkingBudget !== undefined) {
-                    const budget = Number(modelConfigParams.thinkingBudget);
-                    genAIConfig.thinkingConfig = { thinkingBudget: budget };
+                if (this.modelConfig.supportsThinking) {
+                   config.thinkingConfig = { thinkingBudget: Number(modelConfigParams.thinkingBudget) || 0 };
+                   if (modelConfigParams.maxOutputTokens) {
+                       config.maxOutputTokens = Number(modelConfigParams.maxOutputTokens);
+                   }
                 }
-                
-                const chat = this.geminiAi.chats.create({
+
+                const contents: Content[] = history ? [...history, { role: 'user', parts: currentParts }] : [{ role: 'user', parts: currentParts }];
+
+                const responseStream = await this.geminiAi.models.generateContentStream({
                     model: this.modelConfig.id,
-                    config: { ...genAIConfig, systemInstruction: systemPrompt, tools: [{ googleSearch: {} }] },
-                    history,
+                    contents,
+                    config: config
                 });
 
-                let prompt: any;
-                if (isInitialQuery) {
-                    const { promptParts } = this.constructPromptFromQuery(query as OriginalQueryInfo);
-                    prompt = promptParts;
-                } else {
-                    prompt = query as string;
-                }
-
-                const stream = await chat.sendMessageStream({ message: prompt });
                 let fullText = '';
-                for await (const chunk of stream) {
-                    if (signal.aborted) break;
-                    const text = chunk.text || '';
-                    fullText += text;
-                    yield { type: 'chunk', text: text };
-                    if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-                        const chunks = chunk.candidates[0].groundingMetadata.groundingChunks.map((gc: any) => ({ web: gc.web }));
-                        yield { type: 'sources', sources: chunks };
+                let groundingSources: GroundingChunk[] = [];
+
+                for await (const chunk of responseStream) {
+                    if (signal?.aborted) break;
+                    
+                    const text = chunk.text;
+                    if (text) {
+                        fullText += text;
+                        yield { type: 'chunk', text: text };
+                    }
+
+                    const candidate = chunk.candidates?.[0];
+                    if (candidate?.groundingMetadata?.groundingChunks) {
+                        const chunks = candidate.groundingMetadata.groundingChunks as any[];
+                        const newSources = chunks.map(c => ({
+                            web: c.web ? { uri: c.web.uri, title: c.web.title } : undefined
+                        })).filter(s => s.web);
+                        
+                        if (newSources.length > 0) {
+                            groundingSources = [...groundingSources, ...newSources];
+                            yield { type: 'sources', sources: groundingSources };
+                        }
                     }
                 }
-                yield { type: 'final', fullText, modelId: this.modelConfig.id, isInitialSIFTReport: isInitialQuery };
-            } else if (this.provider === AIProvider.MISTRAL) {
-                const mistralKey = this.userApiKeys[AIProvider.MISTRAL];
-                if (!mistralKey) throw new Error("Mistral API key not configured. Check settings.");
-                
-                const mistral = createMistral({ apiKey: mistralKey });
-                const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, AIProvider.MISTRAL).openai || [];
-                
-                const { textStream } = await streamText({
-                    model: mistral(this.modelConfig.id),
-                    messages: [...history, { role: 'user', content: isInitialQuery ? (query as OriginalQueryInfo).text : (query as string) }],
-                    abortSignal: signal,
-                    temperature: Number(modelConfigParams.temperature ?? 0.7),
-                    topP: Number(modelConfigParams.topP ?? 1),
-                    maxTokens: Number(modelConfigParams.max_tokens ?? 4096),
-                });
 
-                let fullText = '';
-                for await (const textPart of textStream) {
-                    fullText += textPart;
-                    yield { type: 'chunk', text: textPart };
-                }
-                yield { type: 'final', fullText, modelId: this.modelConfig.id, isInitialSIFTReport: isInitialQuery };
-            } else {
-                const client = this.openaiClient;
-                if (!client) throw new Error(`${this.provider} API client not initialized. Check your API key in settings.`);
+                yield {
+                    type: 'final',
+                    fullText,
+                    modelId: this.modelConfig.id,
+                    groundingSources,
+                    isInitialSIFTReport: isInitialQuery,
+                    originalQueryReportType: reportType
+                };
+
+            } else if (this.openaiClient) {
+                const systemPrompt = getSystemPromptForSelectedModel(this.modelConfig, customSystemPrompt);
+                const { openai: history } = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, this.provider);
+
+                const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = history || [];
                 
-                const history = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, this.provider).openai || [];
-                const stream = await client.chat.completions.create({
+                const content: any[] = [{ type: 'text', text: userPrompt }];
+                if (this.modelConfig.supportsVision) {
+                    for (const file of files) {
+                        if (file.type.startsWith('image/')) {
+                            content.push({
+                                type: 'image_url',
+                                image_url: { url: file.base64Data }
+                            });
+                        }
+                    }
+                }
+
+                messages.push({ role: 'user', content: content });
+
+                const stream = await this.openaiClient.chat.completions.create({
                     model: this.modelConfig.id,
-                    messages: [...history, { role: 'user', content: isInitialQuery ? (query as OriginalQueryInfo).text : (query as string) }],
+                    messages,
+                    temperature: Number(modelConfigParams.temperature),
+                    top_p: Number(modelConfigParams.topP),
                     stream: true,
-                    temperature: Number(modelConfigParams.temperature ?? 0.7),
-                    top_p: Number(modelConfigParams.topP ?? 1),
-                    max_tokens: Number(modelConfigParams.max_tokens ?? 4096),
                 });
 
                 let fullText = '';
                 for await (const chunk of stream) {
-                    if (signal.aborted) break;
-                    const content = chunk.choices[0]?.delta?.content || "";
-                    fullText += content;
-                    yield { type: 'chunk', text: content };
+                    if (signal?.aborted) break;
+                    const text = chunk.choices[0]?.delta?.content || '';
+                    if (text) {
+                        fullText += text;
+                        yield { type: 'chunk', text: text };
+                    }
                 }
-                yield { type: 'final', fullText, modelId: this.modelConfig.id, isInitialSIFTReport: isInitialQuery };
+
+                yield {
+                    type: 'final',
+                    fullText,
+                    modelId: this.modelConfig.id,
+                    isInitialSIFTReport: isInitialQuery,
+                    originalQueryReportType: reportType
+                };
             }
         } catch (e: any) {
-            console.error("[streamSiftAnalysis] Error:", e);
-            yield { type: 'error', error: e.message };
+            console.error("[streamSiftAnalysis] Error details:", e);
+            yield { type: 'error', error: e.message || 'An error occurred during generation.' };
         }
     }
 }
