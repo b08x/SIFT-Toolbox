@@ -65,33 +65,51 @@ export class AgenticApiService {
     
     public static async validateApiKey(provider: AIProvider, key: string): Promise<{ isValid: boolean, error?: string }> {
         if (!key || !key.trim()) return { isValid: false, error: 'API Key cannot be empty.' };
+        
         try {
             if (provider === AIProvider.GOOGLE_GEMINI) {
                 const ai = new GoogleGenAI({ apiKey: key });
+                // Use simplified content structure for quick validation
                 await ai.models.generateContent({ 
                     model: 'gemini-3-flash-preview', 
-                    contents: [{ parts: [{ text: 'Ping' }] }] 
+                    contents: 'Ping' 
                 });
-            } else if (provider === AIProvider.OPENAI) {
-                const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true });
-                await openai.models.list();
-            } else if (provider === AIProvider.OPENROUTER) {
-                const openrouter = new OpenAI({
-                    baseURL: 'https://openrouter.ai/api/v1',
-                    apiKey: key,
-                    dangerouslyAllowBrowser: true,
-                });
-                await openrouter.models.list();
-            } else if (provider === AIProvider.MISTRAL) {
-                const mistral = new OpenAI({
-                    baseURL: 'https://api.mistral.ai/v1',
-                    apiKey: key,
-                    dangerouslyAllowBrowser: true,
-                });
-                await mistral.models.list();
+            } else {
+                const baseURLMap: Record<string, string> = {
+                    [AIProvider.OPENAI]: 'https://api.openai.com/v1',
+                    [AIProvider.MISTRAL]: 'https://api.mistral.ai/v1',
+                    [AIProvider.OPENROUTER]: 'https://openrouter.ai/api/v1',
+                };
+                
+                const baseURL = baseURLMap[provider];
+                if (baseURL) {
+                    // Use direct fetch for validation to get better error details
+                    const response = await fetch(`${baseURL}/models`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${key}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error?.message || `API returned status ${response.status}`);
+                    }
+                }
             }
             return { isValid: true };
         } catch (e: any) {
+            console.error(`[validateApiKey] ${provider} error:`, e);
+            
+            // Map standard fetch/connection errors to helpful user messages
+            if (e.name === 'TypeError' && (e.message.includes('fetch') || e.message === 'Failed to fetch')) {
+                return { 
+                    isValid: false, 
+                    error: `Connection error: The request to ${provider} was blocked. This is often due to CORS restrictions on browser-side API calls. Consider using a proxy or checking your network.` 
+                };
+            }
+            
             return { isValid: false, error: e.message || 'Validation failed.' };
         }
     }
@@ -100,15 +118,25 @@ export class AgenticApiService {
         const fallback = INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
         
         if (provider === AIProvider.GOOGLE_GEMINI) {
+            if (!apiKey) return fallback;
+            
             try {
-                // Use the Google Discovery endpoint to fetch models, but handle failure gracefully.
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                // Try v1 first, as it is generally more stable for GA keys
+                let response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
+                
+                // Fallback to v1beta if v1 returns 404 or 400
                 if (!response.ok) {
-                    console.warn(`[Gemini] Discovery API error: ${response.status}. Using hardcoded fallback.`);
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                }
+
+                if (!response.ok) {
+                    console.info(`[Gemini] Discovery API unavailable (${response.status}). Using local model list.`);
                     return fallback;
                 }
-                const data = await response.json();
                 
+                const data = await response.json();
+                if (!data.models) return fallback;
+
                 return data.models
                     .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
                     .map((model: any) => {
@@ -135,7 +163,7 @@ export class AgenticApiService {
                     })
                     .sort((a: any, b: any) => b.id.localeCompare(a.id));
             } catch (e) {
-                console.warn("[Gemini] Failed to fetch models:", e);
+                console.warn("[Gemini] Model discovery failed:", e);
                 return fallback;
             }
         }
