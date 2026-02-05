@@ -9,11 +9,12 @@ interface LeftSidebarProps {
     onOpenConfig: () => void;
     onOpenAbout: () => void;
     onOpenSettings: () => void;
+    onOpenExport: () => void;
     currentView: 'config' | 'chat' | 'about';
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
-    isOpen, onToggle, onNewSession, onOpenConfig, onOpenAbout, onOpenSettings, currentView
+    isOpen, onToggle, onNewSession, onOpenConfig, onOpenAbout, onOpenSettings, onOpenExport, currentView
 }) => {
     return (
         <aside className={`${isOpen ? 'w-64' : 'w-16'} transition-all duration-300 bg-content border-r border-ui flex flex-col z-40 hidden md:flex`}>
@@ -61,7 +62,15 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 />
             </nav>
 
-            <div className="p-2 border-t border-ui">
+            <div className="p-2 border-t border-ui space-y-1">
+                <SidebarItem 
+                    icon="ios_share" 
+                    label="Export Session" 
+                    onClick={onOpenExport} 
+                    collapsed={!isOpen} 
+                    active={false}
+                    disabled={currentView !== 'chat'}
+                />
                 <SidebarItem 
                     icon="settings" 
                     label="Settings" 

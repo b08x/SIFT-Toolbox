@@ -1,3 +1,4 @@
+
 import { marked } from 'marked';
 
 export const downloadMarkdown = (content: string, filename: string) => {
@@ -100,24 +101,35 @@ export const downloadHtml = (htmlContent: string, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
+export const downloadJson = (data: any, filename: string) => {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 export const downloadPdfWithBrowserPrint = (markdownContent: string, filename: string, printWindow: Window) => {
     if (!printWindow || printWindow.closed) {
         console.error("Print window is not available or has been closed.");
-        // The caller (App.tsx) is responsible for alerting the user if the window couldn't be opened initially.
         return;
     }
 
     const htmlContent = marked.parse(markdownContent);
     const printDoc = printWindow.document;
 
-    // Write the full document, including styles and a script to trigger printing.
     printDoc.open();
     printDoc.write(`
         <html>
             <head>
                 <title>${filename.replace('.pdf', '')}</title>
                 <style>
-                    /* Print-friendly styles */
                     @media print {
                         @page { 
                             margin: 1.5cm;
@@ -228,7 +240,6 @@ export const downloadPdfWithBrowserPrint = (markdownContent: string, filename: s
                 </style>
                 <script>
                     window.onload = function() {
-                        // A short delay ensures all content is rendered before printing
                         setTimeout(function() {
                             window.focus();
                             window.print();

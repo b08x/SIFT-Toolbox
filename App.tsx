@@ -10,7 +10,9 @@ import { LeftSidebar } from './components/LeftSidebar.tsx';
 import { RightSidebar } from './components/RightSidebar.tsx';
 import { AboutContent } from './components/LandingPage.tsx';
 import { LiveConversationView } from './components/LiveConversationView.tsx';
+import { ExportSessionModal } from './components/ExportSessionModal.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
+import * as DownloadUtils from './utils/download.ts';
 import { useAppStore } from './store.ts';
 import { 
   ReportType, 
@@ -20,6 +22,7 @@ import {
   SourceAssessment,
 } from './types.ts';
 import { parseSourceAssessmentsFromMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
+import { marked } from 'marked';
 
 export const App = (): React.ReactElement => {
   const store = useAppStore();
@@ -32,6 +35,7 @@ export const App = (): React.ReactElement => {
   // Modal States
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isLiveConversationOpen, setIsLiveConversationOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedSourceForModal, setSelectedSourceForModal] = useState<SourceAssessment | null>(null);
 
   // Operational State
@@ -182,11 +186,9 @@ export const App = (): React.ReactElement => {
     }
 
     setMainView('chat');
-    // Auto-close sidebar on mobile after starting
     if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
     
     if (store.chatMessages.length === 0) {
-        // If topic is empty but files are present, use a generic prompt to start the multimodal analysis
         const initialText = hasTopic 
             ? store.sessionTopic 
             : "Please analyze the attached files using the SIFT methodology and provide a full report.";
@@ -235,6 +237,63 @@ export const App = (): React.ReactElement => {
       }
   }, [store]);
 
+  const handleExportSession = useCallback((format: 'pdf' | 'md' | 'html' | 'json') => {
+    const sessionTopic = store.sessionTopic || "Unnamed Investigation";
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filenameBase = `SIFT_Session_${sessionTopic.replace(/\s+/g, '_')}_${dateStr}`;
+
+    if (format === 'json') {
+      const data = {
+        topic: store.sessionTopic,
+        context: store.sessionContext,
+        timestamp: new Date().toISOString(),
+        messages: store.chatMessages,
+        sources: store.sourceAssessments
+      };
+      DownloadUtils.downloadJson(data, `${filenameBase}.json`);
+      setIsExportModalOpen(false);
+      return;
+    }
+
+    // Accumulate Markdown for other formats
+    let fullMd = `# SIFT Investigation: ${sessionTopic}\n\n`;
+    if (store.sessionContext) fullMd += `**Context:** ${store.sessionContext}\n\n`;
+    fullMd += `--- \n\n`;
+
+    store.chatMessages.forEach(msg => {
+      const role = msg.sender === 'user' ? 'USER' : 'SIFT ASSISTANT';
+      const time = new Date(msg.timestamp).toLocaleTimeString();
+      fullMd += `### [${time}] ${role}\n\n`;
+      if (msg.sender === 'ai' && msg.modelId) fullMd += `*Model: ${msg.modelId}*\n\n`;
+      fullMd += `${msg.text}\n\n`;
+      
+      if (msg.groundingSources && msg.groundingSources.length > 0) {
+        fullMd += `**Sources:**\n`;
+        msg.groundingSources.forEach(s => {
+          if (s.web) fullMd += `- [${s.web.title || s.web.uri}](${s.web.uri})\n`;
+        });
+        fullMd += `\n`;
+      }
+      fullMd += `--- \n\n`;
+    });
+
+    if (format === 'md') {
+      DownloadUtils.downloadMarkdown(fullMd, `${filenameBase}.md`);
+    } else if (format === 'html') {
+      const html = marked.parse(fullMd) as string;
+      DownloadUtils.downloadHtml(html, `${filenameBase}.html`);
+    } else if (format === 'pdf') {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        DownloadUtils.downloadPdfWithBrowserPrint(fullMd, `${filenameBase}.pdf`, printWindow);
+      } else {
+        alert("Pop-up blocked. Please allow pop-ups to export as PDF.");
+      }
+    }
+    
+    setIsExportModalOpen(false);
+  }, [store.chatMessages, store.sessionTopic, store.sessionContext, store.sourceAssessments]);
+
   const handleNavClick = useCallback((view: 'config' | 'chat' | 'about') => {
     setMainView(view);
     if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
@@ -252,6 +311,7 @@ export const App = (): React.ReactElement => {
             setIsSettingsModalOpen(true);
             if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
         }}
+        onOpenExport={() => setIsExportModalOpen(true)}
         currentView={mainView}
         onOpenConfig={() => handleNavClick('config')}
       />
@@ -353,6 +413,13 @@ export const App = (): React.ReactElement => {
             onModelConfigParamChange={store.setModelConfigParams}
             customSystemPrompt={store.customSystemPrompt}
             setCustomSystemPrompt={store.setCustomSystemPrompt}
+          />
+      )}
+
+      {isExportModalOpen && (
+          <ExportSessionModal 
+            onClose={() => setIsExportModalOpen(false)}
+            onExport={handleExportSession}
           />
       )}
 
