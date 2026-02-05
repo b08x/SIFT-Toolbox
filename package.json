@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.4.0",
-    "modelfusion": "latest",
+    "model-fusion": "latest",
     "ai": "^3.2.14",
     "@ai-sdk/mistral": "^0.0.22",
     "openai": "^4.47.1",
