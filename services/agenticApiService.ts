@@ -10,7 +10,8 @@ import {
     OriginalQueryInfo,
     ChatMessage,
     ReportType,
-    UploadedFile
+    UploadedFile,
+    CustomCommand
 } from '../types.ts';
 import { 
     INITIAL_MODELS_CONFIG, 
@@ -237,13 +238,14 @@ export class AgenticApiService {
         modelConfigParams: ConfigurableParams;
         signal?: AbortSignal;
         customSystemPrompt?: string;
-        command?: string;
+        command?: string | CustomCommand;
     }): AsyncIterableIterator<StreamEvent> {
         const { isInitialQuery, query, fullChatHistory, modelConfigParams, signal, customSystemPrompt, command } = options;
 
         let userPrompt = '';
         let reportType = ReportType.FULL_CHECK;
         let files: UploadedFile[] = [];
+        let effectiveParams = { ...modelConfigParams };
 
         if (isInitialQuery && typeof query !== 'string') {
             userPrompt = constructFullPrompt(query.text || '', query.reportType);
@@ -252,7 +254,15 @@ export class AgenticApiService {
         } else {
             userPrompt = typeof query === 'string' ? query : (query.text || '');
             if (command) {
-                userPrompt = `[COMMAND: ${command}] ${userPrompt}`;
+                if (typeof command === 'string') {
+                    userPrompt = `[COMMAND: ${command}] ${userPrompt}`;
+                } else {
+                    // Custom Command
+                    userPrompt = `${command.prompt}\n\nUser Input: ${userPrompt}`;
+                    if (command.parameters) {
+                        effectiveParams = { ...effectiveParams, ...command.parameters };
+                    }
+                }
             }
         }
 
@@ -277,9 +287,9 @@ export class AgenticApiService {
 
                 const config: any = {
                     systemInstruction: systemPrompt,
-                    temperature: Number(modelConfigParams.temperature),
-                    topP: Number(modelConfigParams.topP),
-                    topK: Number(modelConfigParams.topK),
+                    temperature: Number(effectiveParams.temperature),
+                    topP: Number(effectiveParams.topP),
+                    topK: Number(effectiveParams.topK),
                 };
 
                 if (this.modelConfig.supportsGoogleSearch) {
@@ -287,9 +297,9 @@ export class AgenticApiService {
                 }
 
                 if (this.modelConfig.supportsThinking) {
-                   config.thinkingConfig = { thinkingBudget: Number(modelConfigParams.thinkingBudget) || 0 };
-                   if (modelConfigParams.maxOutputTokens) {
-                       config.maxOutputTokens = Number(modelConfigParams.maxOutputTokens);
+                   config.thinkingConfig = { thinkingBudget: Number(effectiveParams.thinkingBudget) || 0 };
+                   if (effectiveParams.maxOutputTokens) {
+                       config.maxOutputTokens = Number(effectiveParams.maxOutputTokens);
                    }
                 }
 
@@ -359,8 +369,8 @@ export class AgenticApiService {
                 const stream = await this.openaiClient.chat.completions.create({
                     model: this.modelConfig.id,
                     messages,
-                    temperature: Number(modelConfigParams.temperature),
-                    top_p: Number(modelConfigParams.topP),
+                    temperature: Number(effectiveParams.temperature),
+                    top_p: Number(effectiveParams.topP),
                     stream: true,
                 });
 

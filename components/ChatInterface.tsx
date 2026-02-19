@@ -1,12 +1,12 @@
 import React, { useRef, useEffect, forwardRef } from 'react';
-import { ChatMessage, SourceAssessment } from '../types.ts';
+import { ChatMessage, SourceAssessment, CustomCommand } from '../types.ts';
 import { ChatMessageItem } from './ChatMessageItem.tsx';
 import { ChatInputArea } from './ChatInputArea.tsx';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
   sourceAssessments: SourceAssessment[];
-  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school') => void;
+  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school' | CustomCommand) => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void; // New prop for restarting
@@ -18,12 +18,14 @@ interface ChatInterfaceProps {
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   lastSaveTime: Date | null;
   onSaveSession: () => void;
+  customCommands: CustomCommand[];
 }
 
 export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ 
     messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, 
     onRestartGeneration, canRestart, supportsWebSearch, onSourceIndexClick,
-    onToggleLiveConversation, llmStatusMessage, saveStatus, lastSaveTime, onSaveSession
+    onToggleLiveConversation, llmStatusMessage, saveStatus, lastSaveTime, onSaveSession,
+    customCommands
 }, ref) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -55,6 +57,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
             saveStatus={saveStatus}
             lastSaveTime={lastSaveTime}
             onSaveSession={onSaveSession}
+            customCommands={customCommands}
         />
       </div>
     </div>

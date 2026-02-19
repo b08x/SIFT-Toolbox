@@ -10,7 +10,8 @@ import {
     ConfigurableParams, 
     ApiKeyValidationStates,
     UploadedFile,
-    AIModelConfig
+    AIModelConfig,
+    CustomCommand
 } from './types.ts';
 import { INITIAL_MODELS_CONFIG } from './models.config.ts';
 
@@ -40,6 +41,11 @@ interface AppStateActions {
   setCustomSystemPrompt: (prompt: string) => void;
   setAvailableModels: (models: AIModelConfig[] | ((prev: AIModelConfig[]) => AIModelConfig[])) => void;
   
+  setCustomCommands: (commands: CustomCommand[] | ((prev: CustomCommand[]) => CustomCommand[])) => void;
+  addCustomCommand: (command: CustomCommand) => void;
+  updateCustomCommand: (id: string, updates: Partial<CustomCommand>) => void;
+  deleteCustomCommand: (id: string) => void;
+
   setSessionTopic: (topic: string) => void;
   setSessionContext: (context: string) => void;
   setSessionFiles: (files: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
@@ -66,6 +72,7 @@ const initialState: AppStateProperties = {
   userApiKeys: {},
   apiKeyValidation: {},
   customSystemPrompt: '',
+  customCommands: [],
   sessionTopic: '',
   sessionContext: '',
   sessionFiles: [],
@@ -126,6 +133,21 @@ export const useAppStore = create<AppState>((set) => ({
       set({ availableModels: models });
     }
   },
+
+  setCustomCommands: (commands) => {
+    if (typeof commands === 'function') {
+      set(state => ({ customCommands: commands(state.customCommands) }));
+    } else {
+      set({ customCommands: commands });
+    }
+  },
+  addCustomCommand: (command) => set(state => ({ customCommands: [...state.customCommands, command] })),
+  updateCustomCommand: (id, updates) => set(state => ({
+    customCommands: state.customCommands.map(cmd => cmd.id === id ? Object.assign({}, cmd, updates) : cmd)
+  })),
+  deleteCustomCommand: (id) => set(state => ({
+    customCommands: state.customCommands.filter(cmd => cmd.id !== id)
+  })),
 
   setSessionTopic: (topic: string) => set({ sessionTopic: topic }),
   setSessionContext: (context: string) => set({ sessionContext: context }),

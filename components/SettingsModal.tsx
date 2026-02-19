@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { AgenticApiService } from '../services/agenticApiService.ts';
-import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter } from '../types.ts';
+import { AIProvider, ApiKeyValidationStates, AIModelConfig, ConfigurableParams, ModelParameter, CustomCommand } from '../types.ts';
 import { SliderInput } from './SliderInput.tsx'; 
+import { v4 as uuidv4 } from 'uuid';
 import { SIFT_CHAT_SYSTEM_PROMPT, SIFT_BIAS_FOCUS_PROMPT, SIFT_MISINFORMATION_FOCUS_PROMPT, SIFT_DEEP_BACKGROUND_PROMPT } from '../prompts.ts';
 
 interface SettingsModalProps {
@@ -24,6 +25,10 @@ interface SettingsModalProps {
     onModelConfigParamChange: React.Dispatch<React.SetStateAction<ConfigurableParams>>;
     customSystemPrompt: string;
     setCustomSystemPrompt: (prompt: string) => void;
+    customCommands: CustomCommand[];
+    addCustomCommand: (command: CustomCommand) => void;
+    updateCustomCommand: (id: string, updates: Partial<CustomCommand>) => void;
+    deleteCustomCommand: (id: string) => void;
 }
 
 const uniqueProviders = Array.from(new Set(Object.values(AIProvider)));
@@ -40,12 +45,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen, onClose, userApiKeys, setUserApiKeys, apiKeyValidation, setApiKeyValidation,
     selectedProviderKey, setSelectedProviderKey, enableGeminiPreprocessing, setEnableGeminiPreprocessing,
     availableModels, onModelsUpdate, selectedModelId, onSelectModelId, modelConfigParams, onModelConfigParamChange,
-    customSystemPrompt, setCustomSystemPrompt
+    customSystemPrompt, setCustomSystemPrompt, customCommands, addCustomCommand, updateCustomCommand, deleteCustomCommand
 }) => {
     const [isValidationLoading, setIsValidationLoading] = useState<Partial<Record<AIProvider, boolean>>>({});
     const [isRefreshLoading, setIsRefreshLoading] = useState(false);
     const [localKeys, setLocalKeys] = useState<{ [key in AIProvider]?: string }>(userApiKeys);
     const [selectedPreset, setSelectedPreset] = useState<string>('custom');
+
+    const [isAddingCommand, setIsAddingCommand] = useState(false);
+    const [editingCommandId, setEditingCommandId] = useState<string | null>(null);
+    const [commandName, setCommandName] = useState('');
+    const [commandPrompt, setCommandPrompt] = useState('');
+    const [commandDescription, setCommandDescription] = useState('');
+    const [commandParams, setCommandParams] = useState<ConfigurableParams>({
+        temperature: 0.7,
+        topP: 0.95,
+    });
 
     useEffect(() => {
         setLocalKeys(userApiKeys);
@@ -163,6 +178,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 setCustomSystemPrompt(preset.prompt);
             }
         }
+    };
+
+    const handleAddCommand = () => {
+        if (!commandName.trim() || !commandPrompt.trim()) {
+            alert("Name and Prompt are required.");
+            return;
+        }
+        const newCommand: CustomCommand = {
+            id: uuidv4(),
+            name: commandName,
+            prompt: commandPrompt,
+            description: commandDescription,
+            parameters: commandParams,
+        };
+        addCustomCommand(newCommand);
+        resetCommandForm();
+    };
+
+    const handleUpdateCommand = () => {
+        if (!editingCommandId) return;
+        if (!commandName.trim() || !commandPrompt.trim()) {
+            alert("Name and Prompt are required.");
+            return;
+        }
+        updateCustomCommand(editingCommandId, {
+            name: commandName,
+            prompt: commandPrompt,
+            description: commandDescription,
+            parameters: commandParams,
+        });
+        resetCommandForm();
+    };
+
+    const resetCommandForm = () => {
+        setIsAddingCommand(false);
+        setEditingCommandId(null);
+        setCommandName('');
+        setCommandPrompt('');
+        setCommandDescription('');
+        setCommandParams({
+            temperature: 0.7,
+            topP: 0.95,
+        });
+    };
+
+    const startEditing = (cmd: CustomCommand) => {
+        setEditingCommandId(cmd.id);
+        setCommandName(cmd.name);
+        setCommandPrompt(cmd.prompt);
+        setCommandDescription(cmd.description || '');
+        setCommandParams(cmd.parameters || {
+            temperature: 0.7,
+            topP: 0.95,
+        });
+        setIsAddingCommand(true);
     };
 
     const renderApiKeyInput = (provider: AIProvider, label: string, placeholder: string, instructions?: React.ReactNode) => (
@@ -320,6 +390,115 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <p className="text-xs text-light mt-1">Leave this empty to use the default SIFT prompt. This provides high-level instructions to the model for the entire session.</p>
                             </div>
                         </div>
+                    </section>
+
+                    <section>
+                        <div className="flex justify-between items-center mb-4 border-b border-ui/50 pb-2">
+                            <h2 className="text-xl font-semibold text-primary-accent">Custom Commands</h2>
+                            {!isAddingCommand && (
+                                <button 
+                                    onClick={() => setIsAddingCommand(true)}
+                                    className="text-xs bg-primary text-on-primary px-2 py-1 rounded hover:brightness-110 flex items-center"
+                                >
+                                    <span className="material-symbols-outlined text-sm mr-1">add</span> New Command
+                                </button>
+                            )}
+                        </div>
+
+                        {isAddingCommand ? (
+                            <div className="bg-main/40 p-4 rounded-lg border border-ui space-y-3">
+                                <h3 className="text-sm font-bold text-primary-accent">{editingCommandId ? 'Edit Command' : 'New Custom Command'}</h3>
+                                <div>
+                                    <label className="block text-xs font-medium text-light mb-1">Command Name (Short)</label>
+                                    <input 
+                                        type="text" 
+                                        value={commandName} 
+                                        onChange={(e) => setCommandName(e.target.value)}
+                                        placeholder="e.g., Fact Check"
+                                        className="w-full p-2 bg-main border border-ui rounded text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-light mb-1">Description</label>
+                                    <input 
+                                        type="text" 
+                                        value={commandDescription} 
+                                        onChange={(e) => setCommandDescription(e.target.value)}
+                                        placeholder="What does this command do?"
+                                        className="w-full p-2 bg-main border border-ui rounded text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-light mb-1">Prompt Instructions</label>
+                                    <textarea 
+                                        rows={4}
+                                        value={commandPrompt} 
+                                        onChange={(e) => setCommandPrompt(e.target.value)}
+                                        placeholder="Instructions for the AI when this command is used..."
+                                        className="w-full p-2 bg-main border border-ui rounded text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-3 border-t border-ui/30 pt-3">
+                                    <h4 className="text-xs font-bold text-light uppercase tracking-wider">Command Parameters</h4>
+                                    <SliderInput 
+                                        id="cmd-temp"
+                                        label="Temperature"
+                                        min={0} max={2} step={0.05}
+                                        value={Number(commandParams.temperature)}
+                                        onChange={(val) => setCommandParams(prev => ({ ...prev, temperature: val }))}
+                                        description="Controls randomness: Lower is more deterministic."
+                                    />
+                                    <SliderInput 
+                                        id="cmd-top-p"
+                                        label="Top P"
+                                        min={0} max={1} step={0.01}
+                                        value={Number(commandParams.topP)}
+                                        onChange={(val) => setCommandParams(prev => ({ ...prev, topP: val }))}
+                                        description="Nucleus sampling: Limits the cumulative probability of tokens."
+                                    />
+                                </div>
+                                <div className="flex justify-end space-x-2 pt-2">
+                                    <button onClick={resetCommandForm} className="px-3 py-1 text-xs bg-border rounded hover:bg-border-hover">Cancel</button>
+                                    <button 
+                                        onClick={editingCommandId ? handleUpdateCommand : handleAddCommand}
+                                        className="px-3 py-1 text-xs bg-primary text-on-primary rounded hover:brightness-110"
+                                    >
+                                        {editingCommandId ? 'Update' : 'Save Command'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {customCommands.length === 0 ? (
+                                    <p className="text-xs text-light italic">No custom commands defined yet.</p>
+                                ) : (
+                                    customCommands.map(cmd => (
+                                        <div key={cmd.id} className="flex items-center justify-between p-3 bg-main/30 border border-ui/50 rounded-lg group">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-main">{cmd.name}</h4>
+                                                {cmd.description && <p className="text-[10px] text-light">{cmd.description}</p>}
+                                            </div>
+                                            <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button 
+                                                    onClick={() => startEditing(cmd)}
+                                                    className="p-1 text-light hover:text-primary-accent"
+                                                    title="Edit"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">edit</span>
+                                                </button>
+                                                <button 
+                                                    onClick={() => deleteCustomCommand(cmd.id)}
+                                                    className="p-1 text-light hover:text-status-error"
+                                                    title="Delete"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </section>
                 </main>
 

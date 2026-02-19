@@ -152,6 +152,15 @@ export interface CachedSiftReport {
   cachedAt: number; // Timestamp of when it was cached
 }
 
+export interface CustomCommand {
+  id: string;
+  name: string;
+  prompt: string;
+  icon?: string;
+  description?: string;
+  parameters?: ConfigurableParams;
+}
+
 // For Session Saving
 export interface SavedSessionState {
   chatMessages: ChatMessage[];
@@ -165,6 +174,7 @@ export interface SavedSessionState {
   userApiKeys: { [key in AIProvider]?: string };
   apiKeyValidation: ApiKeyValidationStates;
   customSystemPrompt: string;
+  customCommands: CustomCommand[];
 }
 
 

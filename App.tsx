@@ -20,6 +20,7 @@ import {
   OriginalQueryInfo, 
   AIProvider, 
   SourceAssessment,
+  CustomCommand,
 } from './types.ts';
 import { parseSourceAssessmentsFromMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
 import { marked } from 'marked';
@@ -69,7 +70,7 @@ export const App = (): React.ReactElement => {
 
   const handleSendMessage = useCallback(async (
       text: string, 
-      command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school',
+      command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school' | CustomCommand,
       isInitial: boolean = false
   ) => {
     if (isLoading) return;
@@ -210,7 +211,8 @@ export const App = (): React.ReactElement => {
             enableGeminiPreprocessing: store.enableGeminiPreprocessing,
             userApiKeys: store.userApiKeys,
             apiKeyValidation: store.apiKeyValidation,
-            customSystemPrompt: store.customSystemPrompt
+            customSystemPrompt: store.customSystemPrompt,
+            customCommands: store.customCommands
         });
         setSaveStatus('saved');
         setLastSaveTime(new Date());
@@ -366,6 +368,7 @@ export const App = (): React.ReactElement => {
                     saveStatus={saveStatus}
                     lastSaveTime={lastSaveTime}
                     onSaveSession={handleSaveSession}
+                    customCommands={store.customCommands}
                 />
             )}
 
@@ -413,6 +416,10 @@ export const App = (): React.ReactElement => {
             onModelConfigParamChange={store.setModelConfigParams}
             customSystemPrompt={store.customSystemPrompt}
             setCustomSystemPrompt={store.setCustomSystemPrompt}
+            customCommands={store.customCommands}
+            addCustomCommand={store.addCustomCommand}
+            updateCustomCommand={store.updateCustomCommand}
+            deleteCustomCommand={store.deleteCustomCommand}
           />
       )}
 

@@ -1,7 +1,8 @@
 import React, { useState, KeyboardEvent } from 'react';
+import { CustomCommand } from '../types.ts';
 
 interface ChatInputAreaProps {
-  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school') => void;
+  onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school' | CustomCommand) => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
   onRestartGeneration?: () => void;
@@ -12,11 +13,12 @@ interface ChatInputAreaProps {
   onSaveSession: () => void;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   lastSaveTime: Date | null;
+  customCommands: CustomCommand[];
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ 
     onSendMessage, isLoading, onStopGeneration, onRestartGeneration, onToggleLiveConversation, canRestart, supportsWebSearch,
-    llmStatusMessage, onSaveSession, saveStatus, lastSaveTime
+    llmStatusMessage, onSaveSession, saveStatus, lastSaveTime, customCommands
 }) => {
   const [inputText, setInputText] = useState('');
 
@@ -27,9 +29,16 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     }
   };
 
-  const handleCommand = (command: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school') => {
+  const handleCommand = (command: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school' | CustomCommand) => {
     if (!isLoading) {
-      const queryText = inputText.trim() || command.replace(/_/g, ' ');
+      let queryText = inputText.trim();
+      if (!queryText) {
+        if (typeof command === 'string') {
+          queryText = command.replace(/_/g, ' ');
+        } else {
+          queryText = command.name;
+        }
+      }
       onSendMessage(queryText, command); 
       setInputText(''); 
     }
@@ -152,6 +161,18 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         >
             Explain Simply 🧑‍🏫
         </button>
+        {customCommands.map(cmd => (
+            <button
+                key={cmd.id}
+                onClick={() => handleCommand(cmd)}
+                disabled={isLoading}
+                className="px-3 py-2 text-sm bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary-accent font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden text-ellipsis whitespace-nowrap"
+                title={cmd.description || cmd.name}
+                aria-label={`Run custom command: ${cmd.name}`}
+            >
+                {cmd.name} ✨
+            </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
