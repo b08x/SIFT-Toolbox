@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import { AIProvider, ApiKeyValidationStates, LiveTranscript } from '../types.ts';
 import { useAppStore } from '../store.ts';
@@ -77,7 +77,7 @@ export const LiveConversationView: React.FC<LiveConversationViewProps> = ({ user
     const { chatMessages, sessionTopic } = useAppStore();
 
     const transcriptContainerRef = useRef<HTMLDivElement>(null);
-    const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
+    const sessionPromiseRef = useRef<Promise<any> | null>(null);
     const inputAudioContextRef = useRef<AudioContext | null>(null);
     const outputAudioContextRef = useRef<AudioContext | null>(null);
     const micStreamRef = useRef<MediaStream | null>(null);
@@ -199,7 +199,9 @@ Start the conversation by greeting the user, then provide a concise, one or two-
                     },
                     onmessage: async (message: LiveServerMessage) => {
                        if (message.serverContent?.inputTranscription) {
-                           const { text, isFinal } = message.serverContent.inputTranscription;
+                           const transcription = message.serverContent.inputTranscription as any;
+                           const text = transcription.text;
+                           const isFinal = transcription.isFinal || transcription.final;
                            setTranscripts(prev => {
                                const last = prev[prev.length - 1];
                                if (last?.speaker === 'user' && !last.isFinal) {
@@ -212,7 +214,9 @@ Start the conversation by greeting the user, then provide a concise, one or two-
                        }
 
                        if (message.serverContent?.outputTranscription) {
-                            const { text, isFinal } = message.serverContent.outputTranscription;
+                            const transcription = message.serverContent.outputTranscription as any;
+                            const text = transcription.text;
+                            const isFinal = transcription.isFinal || transcription.final;
                              setTranscripts(prev => {
                                 const last = prev[prev.length - 1];
                                 if (last?.speaker === 'ai' && !last.isFinal) {

@@ -12,7 +12,12 @@ import {
     ReportType,
     UploadedFile
 } from '../types.ts';
-import { INITIAL_MODELS_CONFIG, standardOpenAIParameters, standardGeminiParameters } from '../models.config.ts';
+import { 
+    INITIAL_MODELS_CONFIG, 
+    standardOpenAIParameters, 
+    standardGeminiParameters,
+    getParametersForModel
+} from '../models.config.ts';
 import { getSystemPromptForSelectedModel, getTruncatedHistoryForApi } from '../utils/apiHelpers.ts';
 import { constructFullPrompt } from "../prompts.ts";
 
@@ -116,11 +121,10 @@ export class AgenticApiService {
 
     public static async fetchAvailableModels(provider: AIProvider, apiKey: string): Promise<AIModelConfig[]> {
         const fallback = INITIAL_MODELS_CONFIG.filter(m => m.provider === provider);
+        if (!apiKey) return fallback;
         
-        if (provider === AIProvider.GOOGLE_GEMINI) {
-            if (!apiKey) return fallback;
-            
-            try {
+        try {
+            if (provider === AIProvider.GOOGLE_GEMINI) {
                 // Try v1 first, as it is generally more stable for GA keys
                 let response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
                 
@@ -137,38 +141,93 @@ export class AgenticApiService {
                 const data = await response.json();
                 if (!data.models) return fallback;
 
-                return data.models
+                const uniqueModelsMap = new Map<string, AIModelConfig>();
+
+                data.models
                     .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
-                    .map((model: any) => {
+                    .forEach((model: any) => {
                         const id = model.name.split('/').pop();
-                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5');
+                        if (uniqueModelsMap.has(id)) return;
+
+                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5') || id.includes('gemini-2.0');
                         const isThinkingSupported = isGemini3 || id.includes('thinking');
                         
                         let displayName = model.displayName || id;
                         if (id === 'gemini-3-pro-preview') displayName = 'Google Deep Research';
 
-                        return {
+                        uniqueModelsMap.set(id, {
                             id: id,
                             name: displayName,
                             provider: AIProvider.GOOGLE_GEMINI,
-                            parameters: isThinkingSupported ? [
-                                ...standardGeminiParameters, 
-                                { key: 'maxOutputTokens', label: 'Max Output Tokens', type: 'slider', min: 256, max: 65536, step: 128, defaultValue: 16384, description: 'Max tokens for the response.' },
-                                { key: 'thinkingBudget', label: 'Thinking Budget', type: 'slider', min: 0, max: 32768, step: 128, defaultValue: 8192, description: 'Tokens reserved for planning.' }
-                            ] : standardGeminiParameters,
+                            parameters: getParametersForModel(id, AIProvider.GOOGLE_GEMINI),
                             supportsGoogleSearch: true,
                             supportsVision: true,
                             supportsThinking: isThinkingSupported,
-                        };
-                    })
-                    .sort((a: any, b: any) => b.id.localeCompare(a.id));
-            } catch (e) {
-                console.warn("[Gemini] Model discovery failed:", e);
-                return fallback;
+                        });
+                    });
+
+                return Array.from(uniqueModelsMap.values()).sort((a, b) => b.id.localeCompare(a.id));
+            } else {
+                const baseURLMap: Record<string, string> = {
+                    [AIProvider.OPENAI]: 'https://api.openai.com/v1',
+                    [AIProvider.MISTRAL]: 'https://api.mistral.ai/v1',
+                    [AIProvider.OPENROUTER]: 'https://openrouter.ai/api/v1',
+                };
+                
+                const baseURL = baseURLMap[provider];
+                if (!baseURL) return fallback;
+
+                const response = await fetch(`${baseURL}/models`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    console.warn(`[${provider}] Model discovery failed with status ${response.status}`);
+                    return fallback;
+                }
+
+                const data = await response.json();
+                if (!data.data || !Array.isArray(data.data)) return fallback;
+
+                const uniqueModelsMap = new Map<string, AIModelConfig>();
+
+                data.data.forEach((model: any) => {
+                    const id = model.id;
+                    if (uniqueModelsMap.has(id)) return;
+
+                    const name = model.name || id;
+                    
+                    // Basic heuristic for vision/thinking support
+                    const supportsVision = id.toLowerCase().includes('vision') || 
+                                         id.toLowerCase().includes('gpt-4o') || 
+                                         id.toLowerCase().includes('claude-3') ||
+                                         id.toLowerCase().includes('gemini');
+                    
+                    const supportsThinking = id.toLowerCase().includes('thinking') || 
+                                           id.toLowerCase().includes('o1') || 
+                                           id.toLowerCase().includes('o3') ||
+                                           id.toLowerCase().includes('deepseek-r1');
+
+                    uniqueModelsMap.set(id, {
+                        id: id,
+                        name: name,
+                        provider: provider,
+                        parameters: getParametersForModel(id, provider),
+                        supportsVision,
+                        supportsThinking,
+                    });
+                });
+
+                return Array.from(uniqueModelsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
             }
+        } catch (e) {
+            console.warn(`[${provider}] Model discovery failed:`, e);
+            return fallback;
         }
-        
-        return fallback;
     }
 
     public async *streamSiftAnalysis(options: {

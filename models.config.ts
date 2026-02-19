@@ -67,6 +67,40 @@ export const standardOpenAIParameters: AIModelConfig['parameters'] = [
       }
 ];
 
+export const getParametersForModel = (id: string, provider: AIProvider): ModelParameter[] => {
+  if (provider === AIProvider.GOOGLE_GEMINI) {
+    const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5') || id.includes('gemini-2.0');
+    const isThinkingSupported = isGemini3 || id.includes('thinking');
+    return isThinkingSupported ? GEMINI_3_PARAMS : standardGeminiParameters;
+  }
+
+  // OpenAI / Mistral / OpenRouter
+  const isHighCapacity = id.toLowerCase().includes('large') || 
+                       id.toLowerCase().includes('pro') || 
+                       id.toLowerCase().includes('gpt-4') || 
+                       id.toLowerCase().includes('claude-3') ||
+                       id.toLowerCase().includes('medium') ||
+                       id.toLowerCase().includes('turbo') ||
+                       id.toLowerCase().includes('o1') ||
+                       id.toLowerCase().includes('o3');
+
+  if (isHighCapacity) {
+    return standardOpenAIParameters.map(p => {
+      if (p.key === 'max_tokens') {
+        return { 
+          ...p, 
+          max: 16384, 
+          defaultValue: 4096,
+          description: 'Maximum generation length (High capacity model).'
+        };
+      }
+      return p;
+    });
+  }
+
+  return [...standardOpenAIParameters];
+};
+
 const GEMINI_3_PARAMS: ModelParameter[] = [
   ...standardGeminiParameters,
   { 
@@ -101,7 +135,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsVision: true,
     supportsUrlContext: true,
     supportsThinking: true,
-    parameters: GEMINI_3_PARAMS,
+    parameters: getParametersForModel('gemini-3-pro-preview', AIProvider.GOOGLE_GEMINI),
   },
   {
     id: 'gemini-3-flash-preview',
@@ -110,7 +144,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsGoogleSearch: true,
     supportsVision: true,
     supportsThinking: true,
-    parameters: GEMINI_3_PARAMS,
+    parameters: getParametersForModel('gemini-3-flash-preview', AIProvider.GOOGLE_GEMINI),
   },
   {
     id: 'gemini-flash-lite-latest',
@@ -118,7 +152,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,
-    parameters: standardGeminiParameters,
+    parameters: getParametersForModel('gemini-flash-lite-latest', AIProvider.GOOGLE_GEMINI),
   },
 
   // Mistral Models
@@ -129,7 +163,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsGoogleSearch: false,
     supportsVision: false,
     supportsThinking: true,
-    parameters: [...standardOpenAIParameters],
+    parameters: getParametersForModel('mistral-large-latest', AIProvider.MISTRAL),
   },
   
   // OpenAI Models
@@ -140,7 +174,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsGoogleSearch: false,
     supportsVision: true,
     supportsThinking: true,
-    parameters: [...standardOpenAIParameters],
+    parameters: getParametersForModel('gpt-4o', AIProvider.OPENAI),
   },
   {
     id: 'o1-preview',
@@ -149,7 +183,7 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsGoogleSearch: false,
     supportsVision: true,
     supportsThinking: true,
-    parameters: [...standardOpenAIParameters],
+    parameters: getParametersForModel('o1-preview', AIProvider.OPENAI),
   },
 
   // OpenRouter Models
@@ -160,6 +194,6 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     supportsGoogleSearch: false,
     supportsVision: true,
     supportsThinking: true,
-    parameters: [...standardOpenAIParameters],
+    parameters: getParametersForModel('anthropic/claude-3.5-sonnet', AIProvider.OPENROUTER),
   },
 ];

@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.4.0",
-    "model-fusion": "latest",
+    "modelfusion": "latest",
     "ai": "^3.2.14",
     "@ai-sdk/mistral": "^0.0.22",
     "openai": "^4.47.1",
