@@ -71,6 +71,32 @@ export const AboutContent: React.FC = () => {
                 </FeatureCard>
                 </div>
         </section>
+
+        <section>
+                <h2 className="text-xl font-bold text-center text-main mb-4">Example Prompts & Use Cases</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-main/40 p-4 rounded-lg border border-ui/40">
+                        <h3 className="font-bold text-primary-accent mb-2 text-sm uppercase tracking-wider">Viral Claim Verification</h3>
+                        <p className="text-xs text-light italic mb-2">"Analyze the claim that [Insert Viral Claim] using the SIFT method. Focus on finding the original source and checking for lateral coverage."</p>
+                        <p className="text-[10px] text-light/70">Use this when you see a suspicious headline or social media post that seems too good (or bad) to be true.</p>
+                    </div>
+                    <div className="bg-main/40 p-4 rounded-lg border border-ui/40">
+                        <h3 className="font-bold text-primary-accent mb-2 text-sm uppercase tracking-wider">Source Investigation</h3>
+                        <p className="text-xs text-light italic mb-2">"Investigate the background of [Insert Website or Author]. What is their reputation in this field? Do they have a clear political or commercial bias?"</p>
+                        <p className="text-[10px] text-light/70">Perfect for evaluating a new news site or an 'expert' you've never heard of before.</p>
+                    </div>
+                    <div className="bg-main/40 p-4 rounded-lg border border-ui/40">
+                        <h3 className="font-bold text-primary-accent mb-2 text-sm uppercase tracking-wider">Tracing Context</h3>
+                        <p className="text-xs text-light italic mb-2">"Trace this quote back to its original context: '[Insert Quote]'. Was it edited or taken out of context to change its meaning?"</p>
+                        <p className="text-[10px] text-light/70">Useful for political speeches or controversial statements that might be missing critical nuances.</p>
+                    </div>
+                    <div className="bg-main/40 p-4 rounded-lg border border-ui/40">
+                        <h3 className="font-bold text-primary-accent mb-2 text-sm uppercase tracking-wider">Deep Background</h3>
+                        <p className="text-xs text-light italic mb-2">"Provide a deep background report on the [Insert Topic] controversy. Map out the different perspectives and identify the most reliable data points."</p>
+                        <p className="text-[10px] text-light/70">Best for complex, multi-sided issues where you need to understand the 'discourse map' of the conversation.</p>
+                    </div>
+                </div>
+        </section>
     </div>
   );
 };
