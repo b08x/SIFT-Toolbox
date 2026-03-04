@@ -14,6 +14,7 @@ import { ExportSessionModal } from './components/ExportSessionModal.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
 import * as DownloadUtils from './utils/download.ts';
 import { useAppStore } from './store.ts';
+import { useAuth } from './contexts/AuthContext.tsx';
 import { 
   ReportType, 
   ChatMessage, 
@@ -27,6 +28,7 @@ import { marked } from 'marked';
 
 export const App = (): React.ReactElement => {
   const store = useAppStore();
+  const { user } = useAuth();
   
   // View State
   const [mainView, setMainView] = useState<'config' | 'chat' | 'about'>('config');
@@ -44,6 +46,7 @@ export const App = (): React.ReactElement => {
   const [llmStatusMessage, setLlmStatusMessage] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [hasSavedSession, setHasSavedSession] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -67,6 +70,14 @@ export const App = (): React.ReactElement => {
     };
     initGeminiModels();
   }, []);
+
+  useEffect(() => {
+    const checkSavedSession = async () => {
+      const hasSession = await SessionManager.hasSavedSession(user?.uid);
+      setHasSavedSession(hasSession);
+    };
+    checkSavedSession();
+  }, [user]);
 
   const handleSendMessage = useCallback(async (
       text: string, 
@@ -197,10 +208,10 @@ export const App = (): React.ReactElement => {
     }
   }, [store.sessionTopic, store.sessionFiles, store.chatMessages.length, handleSendMessage]);
 
-  const handleSaveSession = useCallback(() => {
+  const handleSaveSession = useCallback(async () => {
     setSaveStatus('saving');
     try {
-        SessionManager.saveSession({
+        await SessionManager.saveSession({
             chatMessages: store.chatMessages,
             currentSiftQueryDetails: store.currentSiftQueryDetails,
             originalQueryForRestart: store.originalQueryForRestart,
@@ -213,13 +224,14 @@ export const App = (): React.ReactElement => {
             apiKeyValidation: store.apiKeyValidation,
             customSystemPrompt: store.customSystemPrompt,
             customCommands: store.customCommands
-        });
+        }, user?.uid);
         setSaveStatus('saved');
         setLastSaveTime(new Date());
+        setHasSavedSession(true);
     } catch (e) {
         setSaveStatus('error');
     }
-  }, [store]);
+  }, [store, user]);
 
   const handleNewSession = useCallback(() => {
       if (store.chatMessages.length > 0) {
@@ -230,14 +242,14 @@ export const App = (): React.ReactElement => {
       if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
   }, [store]);
 
-  const handleRestoreSession = useCallback(() => {
-      const saved = SessionManager.loadSession();
+  const handleRestoreSession = useCallback(async () => {
+      const saved = await SessionManager.loadSession(user?.uid);
       if (saved) {
           store.setInitialState(saved);
           setMainView('chat');
           if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
       }
-  }, [store]);
+  }, [store, user]);
 
   const handleExportSession = useCallback((format: 'pdf' | 'md' | 'html' | 'json') => {
     const sessionTopic = store.sessionTopic || "Unnamed Investigation";
@@ -347,7 +359,7 @@ export const App = (): React.ReactElement => {
                         setSessionUrls={store.setSessionUrls}
                         onStartSession={handleStartSession}
                         onRestoreSession={handleRestoreSession}
-                        showRestoreButton={SessionManager.hasSavedSession()}
+                        showRestoreButton={hasSavedSession}
                     />
                 </div>
             )}

@@ -4,21 +4,67 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SIFT Toolbox</title>
+    <script>
+      (function() {
+        try {
+          var savedTheme = localStorage.getItem('sift-theme');
+          var root = document.documentElement;
+          if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            root.classList.add('dark');
+          } else if (savedTheme === 'light') {
+            root.classList.add('light');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&family=Space+Mono:ital,wght@0,700;1,400;1,700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
     <style>
       :root {
-        --background: #202124;
-        --background-secondary: #3c4043;
-        --text: #e8eaed;
-        --text-light: #9aa0a6;
-        --border: #5f6368;
-        --primary: darkcyan;
-        --primary-rgb: 0, 139, 139;
-        --primary-text: #e8eaed;
-        --status-success: #34a853;
-        --status-error: #ea4335;
-        --status-warning: #fbbc05;
+        /* Light mode defaults (Modern clean theme) */
+        --background: #f8fafc;
+        --background-secondary: #ffffff;
+        --text: #0f172a;
+        --text-light: #64748b;
+        --border: #e2e8f0;
+        --primary: #0ea5e9;
+        --primary-rgb: 14, 165, 233;
+        --primary-text: #ffffff;
+        --status-success: #10b981;
+        --status-error: #ef4444;
+        --status-warning: #f59e0b;
+      }
+
+      html.dark:root {
+        /* Dark mode (Modern slate theme) */
+        --background: #0f172a;
+        --background-secondary: #1e293b;
+        --text: #f8fafc;
+        --text-light: #94a3b8;
+        --border: #334155;
+        --primary: #38bdf8;
+        --primary-rgb: 56, 189, 248;
+        --primary-text: #0f172a;
+        --status-success: #10b981;
+        --status-error: #ef4444;
+        --status-warning: #f59e0b;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html:not(.light):root {
+          /* Dark mode (Modern slate theme) */
+          --background: #0f172a;
+          --background-secondary: #1e293b;
+          --text: #f8fafc;
+          --text-light: #94a3b8;
+          --border: #334155;
+          --primary: #38bdf8;
+          --primary-rgb: 56, 189, 248;
+          --primary-text: #0f172a;
+          --status-success: #10b981;
+          --status-error: #ef4444;
+          --status-warning: #f59e0b;
+        }
       }
 
       /* Custom scrollbar for webkit browsers */
@@ -109,14 +155,6 @@
         animation: mic-pulse 2s infinite;
       }
 
-
-      /* Tabbed Report Styles */
-      .tabs-container { background-color: var(--background-secondary); border-radius: 0.5rem; overflow: hidden; border: 1px solid var(--border); margin-top: 0.5rem; margin-bottom: 0.5rem; }
-      .tabs-nav { display: flex; flex-wrap: wrap; background-color: var(--background); padding: 4px; border-bottom: 1px solid var(--border); }
-      .tab-button { padding: 8px 12px; margin: 2px; border: 1px solid transparent; background-color: transparent; color: var(--text-light); cursor: pointer; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 500; transition: all 0.2s ease-in-out; flex-shrink: 0; }
-      .tab-button:hover { background-color: var(--border); color: var(--text); }
-      .tab-button.active { background-color: var(--primary); color: var(--primary-text); font-weight: 700; }
-      .tab-content { padding: 12px; background-color: var(--background-secondary); }
 
       /* Source highlight animation */
       @keyframes highlight-fade {

@@ -128,14 +128,14 @@ const GEMINI_3_PARAMS: ModelParameter[] = [
 export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
   // Google Gemini Models - Optimized for Gemini 3
   {
-    id: 'gemini-3-pro-preview',
+    id: 'gemini-3.1-pro-preview',
     name: 'Google Deep Research',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,
     supportsUrlContext: true,
     supportsThinking: true,
-    parameters: getParametersForModel('gemini-3-pro-preview', AIProvider.GOOGLE_GEMINI),
+    parameters: getParametersForModel('gemini-3.1-pro-preview', AIProvider.GOOGLE_GEMINI),
   },
   {
     id: 'gemini-3-flash-preview',

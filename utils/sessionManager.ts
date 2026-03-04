@@ -1,4 +1,6 @@
 import { ChatMessage, SavedSessionState, UploadedFile } from '../types.ts';
+import { db } from '../services/firebase.ts';
+import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
 const SESSION_STORAGE_KEY = 'sift-toolbox-session';
 
@@ -48,17 +50,22 @@ const sanitizeStateForSaving = (state: SavedSessionState): SavedSessionState => 
 
 
 /**
- * Saves the current session state to localStorage.
+ * Saves the current session state to localStorage or Firestore if userId is provided.
  * @param state - The complete state of the session to save.
+ * @param userId - Optional user ID for Firestore saving.
  */
-export const saveSession = (state: SavedSessionState): void => {
+export const saveSession = async (state: SavedSessionState, userId?: string): Promise<void> => {
   try {
     const sanitizedState = sanitizeStateForSaving(state);
-    const jsonState = JSON.stringify(sanitizedState);
-    localStorage.setItem(SESSION_STORAGE_KEY, jsonState);
+    
+    if (userId && db) {
+      await setDoc(doc(db, 'users', userId, 'sessions', 'current'), sanitizedState);
+    } else {
+      const jsonState = JSON.stringify(sanitizedState);
+      localStorage.setItem(SESSION_STORAGE_KEY, jsonState);
+    }
   } catch (error) {
-    console.error("Failed to save session to localStorage:", error);
-    // Add a user-facing alert for this critical error, as it means progress is not being saved.
+    console.error("Failed to save session:", error);
     if (error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
         alert("Could not save session: Storage quota exceeded. The session data is too large even after optimization (e.g., from a very long chat history). Please consider starting a new session to ensure progress is saved.");
     }
@@ -66,18 +73,29 @@ export const saveSession = (state: SavedSessionState): void => {
 };
 
 /**
- * Loads the session state from localStorage.
+ * Loads the session state from localStorage or Firestore.
  * Handles reviving Date objects from their string representations.
+ * @param userId - Optional user ID for Firestore loading.
  * @returns The parsed session state object, or null if not found or invalid.
  */
-export const loadSession = (): SavedSessionState | null => {
+export const loadSession = async (userId?: string): Promise<SavedSessionState | null> => {
   try {
-    const jsonState = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!jsonState) {
-      return null;
+    let savedState: SavedSessionState | null = null;
+
+    if (userId && db) {
+      const docRef = doc(db, 'users', userId, 'sessions', 'current');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        savedState = docSnap.data() as SavedSessionState;
+      }
+    } else {
+      const jsonState = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (jsonState) {
+        savedState = JSON.parse(jsonState);
+      }
     }
-    
-    const savedState: SavedSessionState = JSON.parse(jsonState);
+
+    if (!savedState) return null;
 
     // Revive Date objects which are stored as strings in JSON.
     if (savedState.chatMessages) {
@@ -89,28 +107,39 @@ export const loadSession = (): SavedSessionState | null => {
 
     return savedState;
   } catch (error) {
-    console.error("Failed to load or parse session from localStorage:", error);
+    console.error("Failed to load or parse session:", error);
     // If parsing fails, it's good practice to clear the corrupted data.
-    clearSession();
+    await clearSession(userId);
     return null;
   }
 };
 
 /**
- * Checks if a saved session exists in localStorage without loading it.
+ * Checks if a saved session exists without loading it.
+ * @param userId - Optional user ID for Firestore checking.
  * @returns True if a session exists, false otherwise.
  */
-export const hasSavedSession = (): boolean => {
+export const hasSavedSession = async (userId?: string): Promise<boolean> => {
+  if (userId && db) {
+    const docRef = doc(db, 'users', userId, 'sessions', 'current');
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists();
+  }
   return localStorage.getItem(SESSION_STORAGE_KEY) !== null;
 };
 
 /**
- * Clears the saved session from localStorage.
+ * Clears the saved session.
+ * @param userId - Optional user ID for Firestore clearing.
  */
-export const clearSession = (): void => {
+export const clearSession = async (userId?: string): Promise<void> => {
   try {
-    localStorage.removeItem(SESSION_STORAGE_KEY);
+    if (userId && db) {
+      await deleteDoc(doc(db, 'users', userId, 'sessions', 'current'));
+    } else {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
   } catch (error) {
-    console.error("Failed to clear session from localStorage:", error);
+    console.error("Failed to clear session:", error);
   }
 };

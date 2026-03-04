@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Part, GenerateContentResponse, Content } from "@google/genai";
-import OpenAI from 'openai';
+import { streamText, CoreMessage } from 'ai';
+import { getVercelModel } from './providerFactory.ts';
 import { 
     AIProvider, 
     GroundingChunk,
@@ -24,7 +25,6 @@ import { constructFullPrompt } from "../prompts.ts";
 
 export class AgenticApiService {
     private geminiAi: GoogleGenAI | null = null;
-    private openaiClient: OpenAI | null = null;
     private provider: AIProvider;
     private modelConfig: AIModelConfig;
     
@@ -43,29 +43,9 @@ export class AgenticApiService {
 
     private initializeClients() {
         const geminiKey = process.env.API_KEY;
-        const openaiKey = this.userApiKeys[AIProvider.OPENAI];
-        const openrouterKey = this.userApiKeys[AIProvider.OPENROUTER];
-        const mistralKey = this.userApiKeys[AIProvider.MISTRAL];
         
         if (geminiKey) {
             this.geminiAi = new GoogleGenAI({ apiKey: geminiKey });
-        }
-        if (this.provider === AIProvider.OPENAI && openaiKey) {
-            this.openaiClient = new OpenAI({ apiKey: openaiKey, dangerouslyAllowBrowser: true });
-        }
-        if (this.provider === AIProvider.OPENROUTER && openrouterKey) {
-            this.openaiClient = new OpenAI({
-                baseURL: 'https://openrouter.ai/api/v1',
-                apiKey: openrouterKey,
-                dangerouslyAllowBrowser: true,
-            });
-        }
-        if (this.provider === AIProvider.MISTRAL && mistralKey) {
-             this.openaiClient = new OpenAI({
-                baseURL: 'https://api.mistral.ai/v1',
-                apiKey: mistralKey,
-                dangerouslyAllowBrowser: true,
-            });
         }
     }
     
@@ -85,17 +65,26 @@ export class AgenticApiService {
                     [AIProvider.OPENAI]: 'https://api.openai.com/v1',
                     [AIProvider.MISTRAL]: 'https://api.mistral.ai/v1',
                     [AIProvider.OPENROUTER]: 'https://openrouter.ai/api/v1',
+                    [AIProvider.ANTHROPIC]: 'https://api.anthropic.com/v1',
                 };
                 
                 const baseURL = baseURLMap[provider];
                 if (baseURL) {
+                    const headers: Record<string, string> = {
+                        'Content-Type': 'application/json'
+                    };
+                    
+                    if (provider === AIProvider.ANTHROPIC) {
+                        headers['x-api-key'] = key;
+                        headers['anthropic-version'] = '2023-06-01';
+                    } else {
+                        headers['Authorization'] = `Bearer ${key}`;
+                    }
+
                     // Use direct fetch for validation to get better error details
                     const response = await fetch(`${baseURL}/models`, {
                         method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${key}`,
-                            'Content-Type': 'application/json'
-                        }
+                        headers
                     });
 
                     if (!response.ok) {
@@ -126,12 +115,12 @@ export class AgenticApiService {
         
         try {
             if (provider === AIProvider.GOOGLE_GEMINI) {
-                // Try v1 first, as it is generally more stable for GA keys
-                let response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
+                // Try v1beta first to get preview models
+                let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
                 
-                // Fallback to v1beta if v1 returns 404 or 400
+                // Fallback to v1 if v1beta fails
                 if (!response.ok) {
-                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
                 }
 
                 if (!response.ok) {
@@ -154,7 +143,7 @@ export class AgenticApiService {
                         const isThinkingSupported = isGemini3 || id.includes('thinking');
                         
                         let displayName = model.displayName || id;
-                        if (id === 'gemini-3-pro-preview') displayName = 'Google Deep Research';
+                        if (id === 'gemini-3.1-pro-preview') displayName = 'Google Deep Research';
 
                         uniqueModelsMap.set(id, {
                             id: id,
@@ -173,17 +162,26 @@ export class AgenticApiService {
                     [AIProvider.OPENAI]: 'https://api.openai.com/v1',
                     [AIProvider.MISTRAL]: 'https://api.mistral.ai/v1',
                     [AIProvider.OPENROUTER]: 'https://openrouter.ai/api/v1',
+                    [AIProvider.ANTHROPIC]: 'https://api.anthropic.com/v1',
                 };
                 
                 const baseURL = baseURLMap[provider];
                 if (!baseURL) return fallback;
 
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (provider === AIProvider.ANTHROPIC) {
+                    headers['x-api-key'] = apiKey;
+                    headers['anthropic-version'] = '2023-06-01';
+                } else {
+                    headers['Authorization'] = `Bearer ${apiKey}`;
+                }
+
                 const response = await fetch(`${baseURL}/models`, {
                     method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
-                    }
+                    headers
                 });
 
                 if (!response.ok) {
@@ -200,7 +198,7 @@ export class AgenticApiService {
                     const id = model.id;
                     if (uniqueModelsMap.has(id)) return;
 
-                    const name = model.name || id;
+                    const name = model.name || model.display_name || id;
                     
                     // Basic heuristic for vision/thinking support
                     const supportsVision = id.toLowerCase().includes('vision') || 
@@ -211,7 +209,8 @@ export class AgenticApiService {
                     const supportsThinking = id.toLowerCase().includes('thinking') || 
                                            id.toLowerCase().includes('o1') || 
                                            id.toLowerCase().includes('o3') ||
-                                           id.toLowerCase().includes('deepseek-r1');
+                                           id.toLowerCase().includes('deepseek-r1') ||
+                                           id.toLowerCase().includes('claude-3-7');
 
                     uniqueModelsMap.set(id, {
                         id: id,
@@ -346,41 +345,55 @@ export class AgenticApiService {
                     originalQueryReportType: reportType
                 };
 
-            } else if (this.openaiClient) {
+            } else {
+                const apiKey = this.userApiKeys[this.provider];
+                if (!apiKey) throw new Error(`API key missing for ${this.provider}`);
+
+                const model = getVercelModel(this.provider, apiKey, this.modelConfig.id);
                 const systemPrompt = getSystemPromptForSelectedModel(this.modelConfig, customSystemPrompt);
                 const { openai: history } = getTruncatedHistoryForApi(fullChatHistory, systemPrompt, this.provider);
 
-                const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = history || [];
+                const messages: CoreMessage[] = (history || []).map(msg => {
+                    // Map OpenAI format to Vercel CoreMessage format
+                    if (msg.role === 'system') {
+                        return { role: 'system', content: msg.content as string };
+                    } else if (msg.role === 'user') {
+                        return { role: 'user', content: msg.content as string };
+                    } else if (msg.role === 'assistant') {
+                        return { role: 'assistant', content: msg.content as string };
+                    }
+                    return { role: 'user', content: '' };
+                });
                 
-                const content: any[] = [{ type: 'text', text: userPrompt }];
+                const contentParts: any[] = [{ type: 'text', text: userPrompt }];
                 if (this.modelConfig.supportsVision) {
                     for (const file of files) {
                         if (file.type.startsWith('image/')) {
-                            content.push({
-                                type: 'image_url',
-                                image_url: { url: file.base64Data }
+                            contentParts.push({
+                                type: 'image',
+                                image: file.base64Data
                             });
                         }
                     }
                 }
 
-                messages.push({ role: 'user', content: content });
+                messages.push({ role: 'user', content: contentParts as any });
 
-                const stream = await this.openaiClient.chat.completions.create({
-                    model: this.modelConfig.id,
+                const { textStream } = await streamText({
+                    model,
                     messages,
+                    system: systemPrompt,
                     temperature: Number(effectiveParams.temperature),
-                    top_p: Number(effectiveParams.topP),
-                    stream: true,
+                    topP: Number(effectiveParams.topP),
+                    abortSignal: signal,
                 });
 
                 let fullText = '';
-                for await (const chunk of stream) {
+                for await (const textPart of textStream) {
                     if (signal?.aborted) break;
-                    const text = chunk.choices[0]?.delta?.content || '';
-                    if (text) {
-                        fullText += text;
-                        yield { type: 'chunk', text: text };
+                    if (textPart) {
+                        fullText += textPart;
+                        yield { type: 'chunk', text: textPart };
                     }
                 }
 

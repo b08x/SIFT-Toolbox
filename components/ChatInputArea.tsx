@@ -224,7 +224,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         <button
             onClick={onToggleLiveConversation}
             disabled={isLoading}
-            className="px-4 py-3 text-on-primary font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main bg-border hover:bg-border-hover focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center"
+            className="px-4 py-3 text-main font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main bg-border hover:bg-border-hover focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center"
             aria-label="Start live conversation"
             title="Start live conversation"
         >
@@ -235,9 +235,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         <button
           onClick={isLoading ? onStopGeneration : handleSend}
           disabled={isLoading ? false : !inputText.trim()}
-          className={`px-4 py-3 text-white font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center
+          className={`px-4 py-3 font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center
             ${isLoading
-              ? 'bg-status-error hover:brightness-110 focus:ring-status-error'
+              ? 'bg-status-error hover:brightness-110 focus:ring-status-error text-white'
               : 'bg-primary hover:brightness-110 focus:ring-primary text-on-primary'}`}
           aria-label={isLoading ? "Stop generation" : "Send message"}
         >

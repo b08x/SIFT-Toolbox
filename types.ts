@@ -82,6 +82,7 @@ export enum AIProvider {
   OPENAI = 'OPENAI',
   OPENROUTER = 'OPENROUTER',
   MISTRAL = 'MISTRAL',
+  ANTHROPIC = 'ANTHROPIC',
 }
 
 export type ModelParameterType = 'slider' | 'number' | 'text' | 'select';

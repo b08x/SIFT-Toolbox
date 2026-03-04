@@ -6,7 +6,7 @@ import { ChatMessage, GroundingChunk, ReportType, ParsedReportSection, UploadedF
 import { SIFT_ICON } from '../constants.ts'; 
 import { downloadMarkdown } from '../utils/download.ts';
 import { parseSiftFullCheckReport, transformMarkdownForSubstack } from '../utils/apiHelpers.ts';
-import { TabbedReport } from './TabbedReport.tsx';
+import { CollapsibleReport } from './CollapsibleReport.tsx';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -132,7 +132,7 @@ ${groundingSourcesText}
     if (isInitialSIFTReport && originalQueryReportType === ReportType.FULL_CHECK && !isLoading && !isError) {
       const parsedSections = parseSiftFullCheckReport(text);
       if (parsedSections.length > 0) {
-        return <TabbedReport sections={parsedSections} reasoning={message.reasoning} />;
+        return <CollapsibleReport sections={parsedSections} reasoning={message.reasoning} />;
       }
     }
     

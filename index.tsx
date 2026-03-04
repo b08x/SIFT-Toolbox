@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App.tsx'; // Changed from '@/App' to './App' and named import
+import { AuthProvider } from './contexts/AuthContext.tsx';
 // import '@/index.css'; // Removed as styles are handled by Tailwind CDN and inline styles
 
 const rootElement = document.getElementById('root');
@@ -11,6 +12,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>
 );
