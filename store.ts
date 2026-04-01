@@ -16,10 +16,6 @@ import {
 import { INITIAL_MODELS_CONFIG } from './models.config.ts';
 
 interface AppStateProperties extends SavedSessionState {
-  sessionTopic: string;
-  sessionContext: string;
-  sessionFiles: UploadedFile[];
-  sessionUrls: string;
   availableModels: AIModelConfig[];
 }
 

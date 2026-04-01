@@ -42,7 +42,7 @@ export class AgenticApiService {
     }
 
     private initializeClients() {
-        const geminiKey = process.env.API_KEY;
+        const geminiKey = this.userApiKeys[AIProvider.GOOGLE_GEMINI] || process.env.API_KEY;
         
         if (geminiKey) {
             this.geminiAi = new GoogleGenAI({ apiKey: geminiKey });
@@ -274,6 +274,10 @@ export class AgenticApiService {
 
                 const currentParts: Part[] = [];
                 for (const file of files) {
+                    if (!file.base64Data) {
+                        console.warn(`File ${file.name} is missing base64Data (likely restored from a previous session). Skipping.`);
+                        continue;
+                    }
                     const base64Data = file.base64Data.split(',')[1];
                     currentParts.push({
                         inlineData: {
@@ -368,11 +372,13 @@ export class AgenticApiService {
                 const contentParts: any[] = [{ type: 'text', text: userPrompt }];
                 if (this.modelConfig.supportsVision) {
                     for (const file of files) {
-                        if (file.type.startsWith('image/')) {
+                        if (file.type.startsWith('image/') && file.base64Data) {
                             contentParts.push({
                                 type: 'image',
                                 image: file.base64Data
                             });
+                        } else if (file.type.startsWith('image/') && !file.base64Data) {
+                            console.warn(`Image ${file.name} is missing base64Data (likely restored from a previous session). Skipping.`);
                         }
                     }
                 }

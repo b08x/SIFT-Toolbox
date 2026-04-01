@@ -142,8 +142,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     const handleRefreshModels = () => {
-        const key = selectedProviderKey === AIProvider.GOOGLE_GEMINI ? (process.env.API_KEY || '') : (localKeys[selectedProviderKey] || '');
-        if (!key && selectedProviderKey !== AIProvider.GOOGLE_GEMINI) {
+        const key = localKeys[selectedProviderKey] || (selectedProviderKey === AIProvider.GOOGLE_GEMINI ? process.env.API_KEY : '');
+        if (!key) {
             alert("Please provide an API key first.");
             return;
         }
@@ -262,7 +262,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     if (!isOpen) return null;
 
-    const isCurrentProviderValidated = selectedProviderKey === AIProvider.GOOGLE_GEMINI || apiKeyValidation[selectedProviderKey] === 'valid';
+    const isCurrentProviderValidated = apiKeyValidation[selectedProviderKey] === 'valid' || (selectedProviderKey === AIProvider.GOOGLE_GEMINI && !localKeys[AIProvider.GOOGLE_GEMINI]);
 
     return (
         <div 
@@ -302,6 +302,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </select>
                             </div>
                             
+                            {selectedProviderKey === AIProvider.GOOGLE_GEMINI && renderApiKeyInput(AIProvider.GOOGLE_GEMINI, "Google Gemini API Key", "Enter your Gemini API Key", <p className="text-xs text-light mt-1">Leave blank to use the default system key if available.</p>)}
                             {selectedProviderKey === AIProvider.OPENAI && renderApiKeyInput(AIProvider.OPENAI, "OpenAI API Key", "Enter your OpenAI API Key")}
                             {selectedProviderKey === AIProvider.MISTRAL && renderApiKeyInput(AIProvider.MISTRAL, "Mistral API Key", "Enter your Mistral API Key")}
                             {selectedProviderKey === AIProvider.OPENROUTER && renderApiKeyInput(AIProvider.OPENROUTER, "OpenRouter API Key", "Enter your OpenRouter API Key")}

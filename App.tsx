@@ -213,6 +213,10 @@ export const App = (): React.ReactElement => {
     try {
         await SessionManager.saveSession({
             chatMessages: store.chatMessages,
+            sessionTopic: store.sessionTopic,
+            sessionContext: store.sessionContext,
+            sessionFiles: store.sessionFiles,
+            sessionUrls: store.sessionUrls,
             currentSiftQueryDetails: store.currentSiftQueryDetails,
             originalQueryForRestart: store.originalQueryForRestart,
             sourceAssessments: store.sourceAssessments,
@@ -233,20 +237,48 @@ export const App = (): React.ReactElement => {
     }
   }, [store, user]);
 
-  const handleNewSession = useCallback(() => {
+  // Periodic Save
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (store.chatMessages.length > 0 || store.sessionTopic || store.sessionFiles.length > 0) {
+        handleSaveSession();
+      }
+    }, 30000); // Save every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [handleSaveSession, store.chatMessages.length, store.sessionTopic, store.sessionFiles.length]);
+
+  // Save on session end (tab close)
+  useEffect(() => {
+    const handleUnload = () => {
+      // Note: async calls in unload/beforeunload are unreliable, 
+      // but SessionManager also uses localStorage which is sync.
+      handleSaveSession();
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [handleSaveSession]);
+
+  const handleNewSession = useCallback(async () => {
       if (store.chatMessages.length > 0) {
           if (!window.confirm("Start a new session? Current progress will be saved but cleared from the view.")) return;
+          await handleSaveSession();
       }
       store.resetSession();
       setMainView('config');
       if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
-  }, [store]);
+  }, [store, handleSaveSession]);
 
   const handleRestoreSession = useCallback(async () => {
       const saved = await SessionManager.loadSession(user?.uid);
       if (saved) {
           store.setInitialState(saved);
-          setMainView('chat');
+          // If there are messages, go to chat view, otherwise stay in config to allow starting
+          if (saved.chatMessages && saved.chatMessages.length > 0) {
+              setMainView('chat');
+          } else {
+              setMainView('config');
+          }
           if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
       }
   }, [store, user]);

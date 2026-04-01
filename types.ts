@@ -165,6 +165,10 @@ export interface CustomCommand {
 // For Session Saving
 export interface SavedSessionState {
   chatMessages: ChatMessage[];
+  sessionTopic: string;
+  sessionContext: string;
+  sessionFiles: UploadedFile[];
+  sessionUrls: string;
   currentSiftQueryDetails: CurrentSiftQueryDetails | null;
   originalQueryForRestart: OriginalQueryInfo | null;
   sourceAssessments: SourceAssessment[];
