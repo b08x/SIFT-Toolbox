@@ -386,7 +386,7 @@ export class AgenticApiService {
                 messages.push({ role: 'user', content: contentParts as any });
 
                 const { textStream } = await streamText({
-                    model,
+                    model: model as any,
                     messages,
                     system: systemPrompt,
                     temperature: Number(effectiveParams.temperature),

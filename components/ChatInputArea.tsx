@@ -1,5 +1,18 @@
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, KeyboardEvent, useRef, useEffect } from 'react';
 import { CustomCommand } from '../types.ts';
+import { 
+  SendHorizontal, 
+  Mic, 
+  Globe, 
+  RotateCcw, 
+  Square, 
+  Save, 
+  Loader2, 
+  CheckCircle2, 
+  AlertCircle,
+  Zap,
+  Sparkles
+} from 'lucide-react';
 
 interface ChatInputAreaProps {
   onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school' | CustomCommand) => void;
@@ -21,6 +34,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     llmStatusMessage, onSaveSession, saveStatus, lastSaveTime, customCommands
 }) => {
   const [inputText, setInputText] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(200, textareaRef.current.scrollHeight)}px`;
+    }
+  }, [inputText]);
 
   const handleSend = () => {
     if (inputText.trim() && !isLoading) {
@@ -45,7 +66,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   };
 
   const handleKeyPress = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey && !isLoading) { // Don't send if loading
+    if (event.key === 'Enter' && !event.shiftKey && !isLoading) {
       event.preventDefault();
       handleSend();
     }
@@ -54,208 +75,109 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const renderSaveStatus = () => {
     switch (saveStatus) {
       case 'saving':
-        return (
-          <div className="flex items-center text-xs text-primary-accent">
-            <svg className="animate-spin h-3 w-3 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Saving...
-          </div>
-        );
+        return <div className="flex items-center text-[10px] text-primary"><Loader2 size={10} className="animate-spin mr-1" /> SAVING</div>;
       case 'saved':
-        return (
-          <div className="flex items-center text-xs text-status-success">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {lastSaveTime ? `Saved at ${lastSaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Session saved.'}
-          </div>
-        );
+        return <div className="flex items-center text-[10px] text-status-success"><CheckCircle2 size={10} className="mr-1" /> {lastSaveTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>;
       case 'error':
-        return (
-          <div className="flex items-center text-xs text-status-error">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Error saving.
-          </div>
-        );
-      default: // idle
-        return (
-            <div className="text-xs text-light/70 italic">
-                Auto-saves on change.
-            </div>
-        );
+        return <div className="flex items-center text-[10px] text-status-error"><AlertCircle size={10} className="mr-1" /> ERROR</div>;
+      default:
+        return <div className="text-[10px] text-text-light/50">AUTO-SAVING</div>;
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <button
-          onClick={() => handleCommand('another round')}
-          disabled={isLoading}
-          className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          aria-label="Send 'another round' command"
-        >
-          Another Round 🔁
-        </button>
-        <button
-          onClick={() => handleCommand('read the room')}
-          disabled={isLoading}
-          className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          aria-label="Send 'read the room' command"
-        >
-          Read the Room 🧐
-        </button>
-        <button
-            onClick={() => handleCommand('trace_claim')}
-            disabled={isLoading}
-            className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            title="Trace the origin of a claim or piece of media using the gathered sources"
-            aria-label="Send 'trace claim' command"
-        >
-            Trace Claim 👣
-        </button>
-        <button
-          onClick={() => handleCommand('web_search')}
-          disabled={isLoading || !supportsWebSearch}
-          className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          title={supportsWebSearch ? "Search the web for up-to-date information" : "The selected model does not support web search."}
-          aria-label="Send 'web search' command"
-        >
-          Web Search 🌐
-        </button>
-         <button
-            onClick={() => handleCommand('generate_context_report')}
-            disabled={isLoading}
-            className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            aria-label="Generate SIFT Context Report based on current chat"
-        >
-            Context Report 📊
-        </button>
-        <button
-            onClick={() => handleCommand('generate_community_note')}
-            disabled={isLoading}
-            className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            aria-label="Generate SIFT Community Note based on current chat"
-        >
-            Community Note 📝
-        </button>
-        <button
-            onClick={() => handleCommand('discourse_map')}
-            disabled={isLoading}
-            className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Map out the claims, evidence, and participants in this discourse space"
-            aria-label="Generate a Discourse Map"
-        >
-            Discourse Map 🗺️
-        </button>
-        <button
-            onClick={() => handleCommand('explain_like_im_in_high_school')}
-            disabled={isLoading}
-            className="px-3 py-2 text-sm bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Explain the current topic in simpler terms"
-            aria-label="Explain the topic simply"
-        >
-            Explain Simply 🧑‍🏫
-        </button>
-        {customCommands.map(cmd => (
-            <button
-                key={cmd.id}
-                onClick={() => handleCommand(cmd)}
-                disabled={isLoading}
-                className="px-3 py-2 text-sm bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary-accent font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-content focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden text-ellipsis whitespace-nowrap"
-                title={cmd.description || cmd.name}
-                aria-label={`Run custom command: ${cmd.name}`}
-            >
-                {cmd.name} ✨
-            </button>
+    <div className="max-w-4xl mx-auto w-full space-y-4 pb-6 px-4">
+      <div className="flex flex-wrap gap-2 justify-center">
+        <CommandButton onClick={() => handleCommand('web_search')} disabled={isLoading || !supportsWebSearch} icon={<Globe size={14} />} label="Web Search" />
+        <CommandButton onClick={() => handleCommand('read the room')} disabled={isLoading} label="Read Room" />
+        <CommandButton onClick={() => handleCommand('trace_claim')} disabled={isLoading} label="Trace Claim" />
+        <CommandButton onClick={() => handleCommand('another round')} disabled={isLoading} label="Another Round" />
+        {customCommands.slice(0, 2).map(cmd => (
+            <CommandButton key={cmd.id} onClick={() => handleCommand(cmd)} disabled={isLoading} icon={<Sparkles size={14} />} label={cmd.name} />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-          <div className="min-h-[44px] p-2 bg-main border border-ui rounded-md flex items-center">
-            {isLoading && <span className="status-pulse flex-shrink-0"></span>}
-            <span className="flex-grow">
-              <span className="font-semibold text-primary-accent">Status: </span>
-              {llmStatusMessage ? llmStatusMessage : <span className="italic text-light/70">Idle</span>}
-            </span>
-          </div>
-          <div className="min-h-[44px] p-2 bg-main border border-ui rounded-md flex items-center justify-between">
-              <div className="flex-grow pr-2">
-                  {renderSaveStatus()}
-              </div>
-              <button
-                  onClick={onSaveSession}
-                  disabled={isLoading || saveStatus === 'saving'}
-                  className="px-3 py-1.5 text-xs bg-border hover:bg-border-hover text-main font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main focus:ring-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
-                  title="Manually save the current session"
-              >
-                  Save Now
-              </button>
-          </div>
-      </div>
-
-      <div className="flex items-end space-x-2">
+      <div className="relative bg-background-secondary border border-border rounded-2xl shadow-sm focus-within:border-primary/50 transition-all">
         <textarea
+          ref={textareaRef}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder={isLoading ? "The model is responding..." : "Type your message or select a command..."}
-          className="flex-grow p-3 bg-content border border-ui rounded-lg shadow-sm focus:ring-primary focus:border-primary text-main placeholder-light resize-none disabled:bg-content/80 disabled:cursor-not-allowed"
-          rows={Math.min(3, Math.max(1, inputText.split('\n').length))} 
+          placeholder={isLoading ? "Analyzing..." : "Ask follow-up questions..."}
+          className="w-full p-4 pr-32 bg-transparent text-text placeholder-text-light/50 resize-none outline-none min-h-[56px] max-h-[200px]"
+          rows={1}
           disabled={isLoading}
-          aria-label="Chat message input"
         />
-        {canRestart && !isLoading && onRestartGeneration && (
+        
+        <div className="absolute right-2 bottom-2 flex items-center space-x-1">
           <button
-            onClick={onRestartGeneration}
-            className="px-4 py-3 text-on-primary font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main bg-primary hover:brightness-110 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center"
-            aria-label="Restart last generation"
-            title="Restart last generation"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-            </svg>
-          </button>
-        )}
-        <button
             onClick={onToggleLiveConversation}
             disabled={isLoading}
-            className="px-4 py-3 text-main font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main bg-border hover:bg-border-hover focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center"
-            aria-label="Start live conversation"
-            title="Start live conversation"
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-            </svg>
-        </button>
-        <button
-          onClick={isLoading ? onStopGeneration : handleSend}
-          disabled={isLoading ? false : !inputText.trim()}
-          className={`px-4 py-3 font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ring-offset-main disabled:opacity-50 disabled:cursor-not-allowed transition-colors h-full flex items-center justify-center
-            ${isLoading
-              ? 'bg-status-error hover:brightness-110 focus:ring-status-error text-white'
-              : 'bg-primary hover:brightness-110 focus:ring-primary text-on-primary'}`}
-          aria-label={isLoading ? "Stop generation" : "Send message"}
-        >
-          {isLoading ? (
-            // Stop Icon
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ) : (
-            // Send Icon
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-              <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.949a.75.75 0 00.95.579h1.844a.75.75 0 00.659-.41l1.415-2.452a.75.75 0 00-.24-1.025S4.106 2.29 3.105 2.29zM3.105 2.289L1.691 7.238a.75.75 0 00.95.826h1.844a.75.75 0 00.579-.95L3.654 3.202a.75.75 0 00-1.025-.24S2.29 4.106 2.29 3.105zM14.999 2.525a.75.75 0 00-1.025.24L12.559 6.43a.75.75 0 00.659.41h1.844a.75.75 0 00.95-.579l1.414-4.949a.75.75 0 00-.826-.95L14.999 2.525z" />
-              <path d="M16.895 10.532l-2.452-1.415a.75.75 0 00-1.025.24S12.29 10.394 12.29 11.395l1.414 4.949a.75.75 0 00.95.579h1.844a.75.75 0 00.579-.95L15.654 12.082a.75.75 0 00-.24-1.025S16.895 10.532 16.895 10.532zM9.25 12.25a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5h-1.5z" />
-              <path fillRule="evenodd" d="M8.25 5.038a.75.75 0 01.75.712v9.5a.75.75 0 01-.75.75A.75.75 0 017.5 16V5.75a.75.75 0 01.75-.712zM11.75 5.038a.75.75 0 01.75.712v9.5a.75.75 0 01-.75.75a.75.75 0 01-.75-.75V5.75a.75.75 0 01.75-.712z" clipRule="evenodd" />
-            </svg>
+            className="p-2 text-text-light hover:text-text hover:bg-border/50 rounded-xl transition-colors disabled:opacity-30"
+            title="Voice Conversation"
+          >
+            <Mic size={20} />
+          </button>
+          
+          {canRestart && !isLoading && onRestartGeneration && (
+            <button
+              onClick={onRestartGeneration}
+              className="p-2 text-text-light hover:text-text hover:bg-border/50 rounded-xl transition-colors"
+              title="Regenerate"
+            >
+              <RotateCcw size={20} />
+            </button>
           )}
+
+          <button
+            onClick={isLoading ? onStopGeneration : handleSend}
+            disabled={!isLoading && !inputText.trim()}
+            className={`p-2 rounded-xl transition-all ${
+                isLoading 
+                ? 'text-status-error hover:bg-status-error/10' 
+                : 'text-primary hover:bg-primary/10 disabled:opacity-30'
+            }`}
+          >
+            {isLoading ? <Square size={20} fill="currentColor" /> : <SendHorizontal size={20} />}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center px-2">
+        <div className="flex items-center space-x-3 text-[11px] text-text-light/70 tracking-tight">
+          <div className="flex items-center">
+            <div className={`w-1.5 h-1.5 rounded-full mr-2 ${isLoading ? 'bg-primary animate-pulse' : 'bg-status-success'}`}></div>
+            <span>{llmStatusMessage || (isLoading ? 'SIFTing...' : 'Ready')}</span>
+          </div>
+          {renderSaveStatus()}
+        </div>
+        
+        <button 
+          onClick={onSaveSession}
+          disabled={isLoading || saveStatus === 'saving'}
+          className="text-[11px] text-text-light hover:text-text flex items-center transition-colors disabled:opacity-30 uppercase font-bold tracking-tighter"
+        >
+          <Save size={12} className="mr-1" /> Save
         </button>
       </div>
     </div>
   );
 };
+
+const CommandButton: React.FC<{ 
+    onClick: () => void; 
+    disabled: boolean; 
+    icon?: React.ReactNode; 
+    label: string; 
+    title?: string;
+}> = ({ onClick, disabled, icon, label, title }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        className="flex items-center px-3 py-1.5 bg-background-secondary border border-border text-text-light text-xs font-medium rounded-full hover:bg-border/50 hover:text-text transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+        {icon && <span className="mr-1.5">{icon}</span>}
+        {label}
+    </button>
+);

@@ -2,6 +2,21 @@
 import React, { useState, useEffect } from 'react';
 import { SIFT_ICON } from '../constants.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
+import { 
+  Plus, 
+  Settings2, 
+  MessageSquare, 
+  Info, 
+  Settings, 
+  LogOut, 
+  LogIn, 
+  Moon, 
+  Sun, 
+  Monitor, 
+  Share, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
 
 interface LeftSidebarProps {
     isOpen: boolean;
@@ -58,9 +73,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     };
 
     const getThemeIcon = () => {
-        if (theme === 'light') return 'light_mode';
-        if (theme === 'dark') return 'dark_mode';
-        return 'brightness_auto';
+        if (theme === 'light') return <Sun size={20} />;
+        if (theme === 'dark') return <Moon size={20} />;
+        return <Monitor size={20} />;
     };
 
     const getThemeLabel = () => {
@@ -70,36 +85,34 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     };
 
     return (
-        <aside className={`${isOpen ? 'w-64' : 'w-16'} transition-all duration-300 bg-content border-r border-ui flex flex-col z-40 hidden md:flex`}>
-            <div className="p-4 border-b border-ui flex items-center justify-between">
+        <aside className={`${isOpen ? 'w-64' : 'w-16'} transition-all duration-300 bg-background-secondary border-r border-border flex flex-col z-40 hidden md:flex`}>
+            <div className="p-4 flex items-center justify-between">
                 <div className={`flex items-center overflow-hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>
-                    <span className="text-2xl mr-2">{SIFT_ICON}</span>
-                    <h1 className="font-extrabold text-primary-accent text-lg whitespace-nowrap">SIFT Toolbox</h1>
+                    <span className="text-xl mr-3">{SIFT_ICON}</span>
+                    <h1 className="font-bold text-text text-sm uppercase tracking-widest whitespace-nowrap">SIFT BOX</h1>
                 </div>
-                <button onClick={onToggle} className="p-1 rounded-md hover:bg-border text-light">
-                    <span className="material-symbols-outlined">
-                        {isOpen ? 'chevron_left' : 'chevron_right'}
-                    </span>
+                <button onClick={onToggle} className="p-1.5 rounded-md hover:bg-border text-text-light transition-colors">
+                    {isOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
                 </button>
             </div>
 
             <nav className="flex-grow p-2 space-y-1">
                 <SidebarItem 
-                    icon="add_box" 
+                    icon={<Plus size={20} />} 
                     label="New Session" 
                     onClick={onNewSession} 
                     collapsed={!isOpen} 
                     active={false} 
                 />
                 <SidebarItem 
-                    icon="settings_input_component" 
+                    icon={<Settings2 size={20} />} 
                     label="Configuration" 
                     onClick={onOpenConfig} 
                     collapsed={!isOpen} 
                     active={currentView === 'config'} 
                 />
                 <SidebarItem 
-                    icon="chat" 
+                    icon={<MessageSquare size={20} />} 
                     label="Chat Analysis" 
                     onClick={() => {}} 
                     collapsed={!isOpen} 
@@ -107,7 +120,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     disabled={currentView !== 'chat'}
                 />
                 <SidebarItem 
-                    icon="info" 
+                    icon={<Info size={20} />} 
                     label="About SIFT" 
                     onClick={onOpenAbout} 
                     collapsed={!isOpen} 
@@ -115,7 +128,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 />
             </nav>
 
-            <div className="p-2 border-t border-ui space-y-1">
+            <div className="p-2 border-t border-border space-y-1">
                 {isConfigured && (
                     <div className="mb-2">
                         {user ? (
@@ -123,21 +136,21 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                 <div className="flex items-center overflow-hidden">
                                     <img src={user.photoURL || ''} alt="Profile" className="w-6 h-6 rounded-full flex-shrink-0" referrerPolicy="no-referrer" />
                                     {!isOpen && (
-                                        <div className="absolute left-full ml-4 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                                        <div className="absolute left-full ml-4 px-2 py-1 bg-background-secondary border border-border text-text text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
                                             {user.displayName}
                                         </div>
                                     )}
-                                    {isOpen && <span className="ml-3 text-sm text-light truncate">{user.displayName}</span>}
+                                    {isOpen && <span className="ml-3 text-sm text-text-light truncate">{user.displayName}</span>}
                                 </div>
                                 {isOpen && (
-                                    <button onClick={signOut} className="text-light hover:text-primary-accent" title="Sign Out">
-                                        <span className="material-symbols-outlined text-sm">logout</span>
+                                    <button onClick={signOut} className="text-text-light hover:text-primary transition-colors" title="Sign Out">
+                                        <LogOut size={16} />
                                     </button>
                                 )}
                             </div>
                         ) : (
                             <SidebarItem 
-                                icon="login" 
+                                icon={<LogIn size={20} />} 
                                 label="Sign In" 
                                 onClick={signInWithGoogle} 
                                 collapsed={!isOpen} 
@@ -154,7 +167,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     active={false}
                 />
                 <SidebarItem 
-                    icon="ios_share" 
+                    icon={<Share size={20} />} 
                     label="Export Session" 
                     onClick={onOpenExport} 
                     collapsed={!isOpen} 
@@ -162,7 +175,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     disabled={currentView !== 'chat'}
                 />
                 <SidebarItem 
-                    icon="settings" 
+                    icon={<Settings size={20} />} 
                     label="Settings" 
                     onClick={onOpenSettings} 
                     collapsed={!isOpen} 
@@ -174,7 +187,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 };
 
 const SidebarItem: React.FC<{ 
-    icon: string; 
+    icon: React.ReactNode; 
     label: string; 
     onClick: () => void; 
     collapsed: boolean; 
@@ -184,17 +197,17 @@ const SidebarItem: React.FC<{
     <button
         onClick={onClick}
         disabled={disabled}
-        className={`w-full flex items-center p-3 rounded-lg transition-colors group relative
-            ${active ? 'bg-primary/20 text-primary-accent font-bold' : 'text-light hover:bg-border hover:text-main'}
+        className={`w-full flex items-center p-2.5 rounded-lg transition-all group relative
+            ${active ? 'bg-primary/10 text-primary font-medium' : 'text-text-light hover:bg-border/50 hover:text-text'}
             ${disabled ? 'opacity-40 cursor-not-allowed' : ''}
         `}
     >
-        <span className={`material-symbols-outlined flex-shrink-0 ${active ? 'text-primary-accent' : 'text-light group-hover:text-main'}`}>
+        <span className={`flex-shrink-0 ${active ? 'text-primary' : 'text-text-light group-hover:text-text'}`}>
             {icon}
         </span>
-        {!collapsed && <span className="ml-3 truncate">{label}</span>}
+        {!collapsed && <span className="ml-3 text-sm truncate">{label}</span>}
         {collapsed && (
-            <div className="absolute left-full ml-4 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+            <div className="absolute left-full ml-4 px-2 py-1 bg-background-secondary border border-border text-text text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-sm">
                 {label}
             </div>
         )}

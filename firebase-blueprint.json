@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "Session": {
+      "title": "User Session",
+      "description": "Saved session state for a user",
+      "type": "object",
+      "properties": {
+        "chatMessages": { "type": "array" },
+        "sessionTopic": { "type": "string" },
+        "sessionContext": { "type": "string" },
+        "sessionFiles": { "type": "array" },
+        "sessionUrls": { "type": "string" },
+        "currentSiftQueryDetails": { "type": "object" },
+        "originalQueryForRestart": { "type": "object" },
+        "sourceAssessments": { "type": "array" },
+        "groundingSources": { "type": "array" },
+        "lastSaveTime": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/sessions/current": {
+      "schema": "Session",
+      "description": "Current active session for a specific user"
+    }
+  }
+}

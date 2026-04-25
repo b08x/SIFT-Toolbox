@@ -34,17 +34,19 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full bg-main shadow-2xl rounded-xl overflow-hidden">
+    <div className="flex flex-col h-full bg-main overflow-hidden">
       {/* Chat Messages Area */}
-      <div ref={ref} className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4">
-        {messages.map((msg) => (
-          <ChatMessageItem key={msg.id} message={msg} sourceAssessments={sourceAssessments} onSourceIndexClick={onSourceIndexClick} />
-        ))}
-        <div ref={messagesEndRef} /> {/* For auto-scrolling */}
+      <div ref={ref} className="flex-grow overflow-y-auto pt-8 pb-4 space-y-2">
+        <div className="max-w-4xl mx-auto w-full">
+          {messages.map((msg) => (
+            <ChatMessageItem key={msg.id} message={msg} sourceAssessments={sourceAssessments} onSourceIndexClick={onSourceIndexClick} />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Chat Input Area */}
-      <div className="shrink-0 p-3 sm:p-4 border-t border-ui bg-main">
+      <div className="shrink-0 p-4 bg-gradient-to-t from-main via-main to-transparent">
         <ChatInputArea 
             onSendMessage={onSendMessage}
             isLoading={isLoading}

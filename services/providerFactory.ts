@@ -17,8 +17,7 @@ export const getVercelModel = (provider: AIProvider, apiKey: string, modelId: st
 
     case AIProvider.OPENAI: {
       const openai = createOpenAI({ 
-        apiKey, 
-        compatibility: 'strict' 
+        apiKey
       });
       return openai(modelId);
     }

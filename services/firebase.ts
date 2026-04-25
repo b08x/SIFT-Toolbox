@@ -1,20 +1,13 @@
+/// <reference types="vite/client" />
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
-};
+import firebaseConfig from '../firebase-applet-config.json';
 
-// Initialize Firebase only if config is provided
-const app = firebaseConfig.apiKey ? initializeApp(firebaseConfig) : null;
-export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); // Use project/database from the config
 export const googleProvider = new GoogleAuthProvider();
 
-export const isFirebaseConfigured = () => !!app;
+export const isFirebaseConfigured = () => true;

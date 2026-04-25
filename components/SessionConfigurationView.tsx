@@ -1,6 +1,18 @@
 
 import React, { useState, DragEvent } from 'react';
 import { UploadedFile } from '../types.ts';
+import { SIFT_ICON } from '../constants.ts';
+import { 
+  Key, 
+  Settings, 
+  FileUp, 
+  X, 
+  RotateCcw, 
+  Sparkles,
+  Plus,
+  Link as LinkIcon,
+  MessageSquareText
+} from 'lucide-react';
 
 interface SessionConfigurationViewProps {
     isApiKeyValid: boolean;
@@ -90,131 +102,141 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
     const renderContent = () => {
         if (!isApiKeyValid) {
             return (
-                <div className="flex flex-col items-center justify-center text-center p-8 h-full bg-main/50 rounded-lg">
-                    <span className="text-6xl mb-4">🔑</span>
-                    <h2 className="text-2xl font-bold text-main">API Key Required</h2>
-                    <p className="text-light mt-2 max-w-md">
-                        Please configure and validate a valid API key in the settings to enable the SIFT session controls.
+                <div className="flex flex-col items-center justify-center text-center p-12 h-screen max-h-[600px]">
+                    <div className="w-16 h-16 bg-background-secondary border border-border rounded-2xl flex items-center justify-center mb-6">
+                      <Key size={32} className="text-primary" />
+                    </div>
+                    <h2 className="text-xl font-bold text-text uppercase tracking-widest mb-3">Authentication Required</h2>
+                    <p className="text-text-light text-sm max-w-sm mb-8 leading-relaxed">
+                        To access SIFT Box intelligence, please provide a valid API key in the environment or settings.
                     </p>
                     <button 
                         onClick={onOpenSettings}
-                        className="mt-6 px-5 py-2.5 bg-primary hover:brightness-110 text-on-primary font-bold text-base rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-primary/50"
+                        className="px-6 py-2.5 bg-primary text-on-primary font-bold text-sm rounded-xl hover:bg-primary-dark transition-all flex items-center"
                     >
-                        Open Settings
+                        <Settings size={18} className="mr-2" /> Open Settings
                     </button>
                 </div>
             );
         }
 
         return (
-            <div className="p-4 space-y-6">
-                <div className="space-y-4">
-                    <div>
-                        <label htmlFor="session-topic" className="block text-sm font-medium text-main mb-1">Topic / Subject</label>
+            <div className="max-w-2xl mx-auto space-y-12">
+                <header className="text-center space-y-2">
+                  <div className="inline-flex items-center justify-center w-12 h-12 bg-background-secondary border border-border rounded-xl mb-4">
+                    <Sparkles size={24} className="text-primary" />
+                  </div>
+                  <h1 className="text-2xl font-bold uppercase tracking-widest text-text">New Investigation</h1>
+                  <p className="text-text-light text-sm">Configure your search and analysis parameters</p>
+                </header>
+
+                <div className="space-y-8">
+                    <div className="space-y-2">
+                        <label htmlFor="session-topic" className="flex items-center text-xs font-bold uppercase tracking-wider text-text-light">
+                          <MessageSquareText size={14} className="mr-2" /> Topic / Subject
+                        </label>
                         <input
                             id="session-topic"
                             type="text"
                             value={sessionTopic}
                             onChange={(e) => setSessionTopic(e.target.value)}
-                            placeholder="e.g., Analysis of a viral video"
-                            className="w-full p-2 bg-main border border-ui rounded-md shadow-sm"
+                            placeholder="What would you like to investigate?"
+                            className="w-full p-4 bg-background-secondary border border-border rounded-2xl text-text placeholder-text-light/50 focus:border-primary/50 outline-none transition-all"
                         />
-                        <p className="text-xs text-light mt-1">A clear, concise title or claim for your investigation.</p>
                     </div>
-                    <div>
-                        <label htmlFor="session-context" className="block text-sm font-medium text-main mb-1">Additional Context / Instructions</label>
+
+                    <div className="space-y-2">
+                        <label htmlFor="session-context" className="flex items-center text-xs font-bold uppercase tracking-wider text-text-light">
+                          <Plus size={14} className="mr-2" /> Additional Context
+                        </label>
                         <textarea
                             id="session-context"
-                            rows={4}
+                            rows={3}
                             value={sessionContext}
                             onChange={(e) => setSessionContext(e.target.value)}
-                            placeholder="e.g., Focus on identifying the original location and date of the video."
-                            className="w-full p-2 bg-main border border-ui rounded-md shadow-sm"
+                            placeholder="Add specific instructions or background..."
+                            className="w-full p-4 bg-background-secondary border border-border rounded-2xl text-text placeholder-text-light/50 focus:border-primary/50 outline-none transition-all resize-none"
                         />
-                        <p className="text-xs text-light mt-1">Provide any specific instructions for the AI analyst.</p>
                     </div>
-                        <div>
-                        <label htmlFor="session-urls" className="block text-sm font-medium text-main mb-1">
-                            URLs for Context (one per line)
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="space-y-2">
+                        <label htmlFor="session-urls" className="flex items-center text-xs font-bold uppercase tracking-wider text-text-light">
+                          <LinkIcon size={14} className="mr-2" /> REFERENCE URLS
                         </label>
                         <textarea
                             id="session-urls"
-                            rows={3}
+                            rows={4}
                             value={sessionUrls}
                             onChange={(e) => setSessionUrls(e.target.value)}
-                            placeholder="https://example.com/article1&#10;https://anotherexample.org/report"
-                            className="w-full p-2 bg-main border border-ui rounded-md shadow-sm"
+                            placeholder="https://example.com..."
+                            className="w-full p-4 bg-background-secondary border border-border rounded-2xl text-text text-sm placeholder-text-light/50 focus:border-primary/50 outline-none transition-all resize-none"
                         />
-                        <p className="text-xs text-light mt-1">
-                            Provide specific web pages for the model to analyze.
-                        </p>
-                    </div>
-                        <div>
-                        <label className="block text-sm font-medium text-main mb-1">
-                            Supporting Files
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center text-xs font-bold uppercase tracking-wider text-text-light">
+                          <FileUp size={14} className="mr-2" /> SUPPORTING FILES
                         </label>
                         <div
                             onDragEnter={handleDragEnter}
                             onDragLeave={handleDragLeave}
                             onDragOver={handleDragOver}
                             onDrop={handleDrop}
-                            className={`relative mt-1 flex justify-center px-6 pt-5 pb-6 border-2 ${isDraggingOver ? 'border-primary' : 'border-ui'} border-dashed rounded-md transition-colors cursor-pointer hover:border-primary/80`}
+                            className={`relative min-h-[116px] flex flex-col items-center justify-center p-4 border-2 ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border'} border-dashed rounded-2xl transition-all hover:bg-background-secondary group cursor-pointer`}
                         >
-                            <div className="space-y-1 text-center">
-                                <svg className="mx-auto h-12 w-12 text-light" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                                <div className="flex text-sm text-light">
-                                    <label htmlFor="file-upload" className="relative cursor-pointer bg-transparent rounded-md font-medium text-primary-accent hover:brightness-125 focus-within:outline-none">
-                                        <span>Upload files</span>
-                                    </label>
-                                    <p className="pl-1">or drag and drop</p>
-                                </div>
-                                <p className="text-xs text-light/70">Max 10MB per file</p>
+                            <FileUp size={24} className={`mb-2 transition-transform ${isDraggingOver ? 'scale-110 text-primary' : 'text-text-light group-hover:text-text'}`} />
+                            <div className="text-center">
+                                <label htmlFor="file-upload" className="cursor-pointer font-bold text-xs text-primary hover:underline">
+                                    Click to upload
+                                </label>
+                                <p className="text-[10px] text-text-light mt-1 uppercase tracking-tight">or drag and drop</p>
                             </div>
                             <input id="file-upload" name="file-upload" type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" multiple onChange={(e) => handleFileChange(e.target.files)} />
                         </div>
+                        
                         {sessionFiles.length > 0 && (
-                            <div className="mt-4 space-y-2 max-h-40 overflow-y-auto">
+                            <div className="mt-3 space-y-1.5 max-h-32 overflow-y-auto pr-1">
                                 {sessionFiles.map((file, index) => (
-                                    <div key={index} className="flex items-center justify-between bg-main p-2 rounded-md text-sm">
-                                        <div className="flex-1 truncate" title={file.name}>
-                                            <span className="font-medium text-main">{file.name}</span>
-                                            <span className="text-xs text-light ml-2">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                                    <div key={index} className="flex items-center justify-between bg-background-secondary border border-border p-2 rounded-xl text-[11px]">
+                                        <div className="flex-1 truncate group" title={file.name}>
+                                            <span className="font-medium text-text group-hover:text-primary transition-colors">{file.name}</span>
                                         </div>
-                                        <button onClick={() => removeFile(index)} className="ml-2 text-status-error hover:brightness-110 flex-shrink-0" title="Remove file">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
+                                        <button onClick={() => removeFile(index)} className="ml-2 text-text-light hover:text-status-error transition-colors" title="Remove">
+                                            <X size={14} />
                                         </button>
                                     </div>
                                 ))}
                             </div>
                         )}
+                      </div>
                     </div>
                 </div>
 
-                <div className="mt-6 space-y-3">
+                <footer className="footer-actions flex flex-col space-y-3 pt-6 border-t border-border">
                     <button
                         onClick={onStartSession}
                         disabled={!isApiKeyValid || !canStart}
-                        className="px-8 py-3 w-full bg-primary hover:brightness-110 text-on-primary font-bold text-base rounded-lg shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        title={isApiKeyValid ? "Begin the SIFT session" : "Please validate the required API key(s) in Settings."}
+                        className="w-full py-4 bg-primary text-on-primary font-bold text-sm uppercase tracking-widest rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                        Start SIFT Session
+                        Initialize Analysis
                     </button>
                     {showRestoreButton && (
                         <button 
                             onClick={onRestoreSession}
-                            className="w-full px-8 py-3 bg-content border border-ui hover:bg-border text-main font-bold text-sm rounded-lg shadow-xl transition-all"
+                            className="w-full py-4 bg-background-secondary border border-border text-text font-bold text-xs uppercase tracking-widest rounded-2xl hover:bg-border transition-all flex items-center justify-center"
                         >
-                            Restore Previous Session ↩
+                            <RotateCcw size={16} className="mr-2" /> Restore Session
                         </button>
                     )}
-                </div>
+                </footer>
             </div>
         );
     }
     
-    return renderContent();
+    return (
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {renderContent()}
+      </div>
+    );
 };

@@ -180,52 +180,61 @@ ${groundingSourcesText}
   };
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} group mb-2`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6 px-4`}>
       <div
-        className={`max-w-full w-full px-4 py-3 rounded-xl shadow ${
+        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl ${
           isUser
-            ? 'bg-primary text-on-primary rounded-br-none ml-8 sm:ml-12'
-            : 'bg-content text-main rounded-bl-none mr-8 sm:mr-12'
+            ? 'bg-background-secondary border border-border px-4 py-3'
+            : 'w-full'
         } ${
-          isError ? 'border border-status-error bg-status-error-20 text-status-error' : ''
+          isError ? 'border-status-error bg-status-error/5 text-status-error' : ''
         }`}
       >
         {!isUser && (
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center">
-              <span className="text-lg mr-2">{SIFT_ICON}</span>
-              <span className="font-semibold text-sm text-primary-accent">
-                SIFT Assistant
-                {isFromCache && <span className="text-xs ml-1.5 text-primary-accent" title="Loaded from local cache">⚡ Cached</span>}
-              </span>
+          <div className="flex items-start mb-2 group-hover:opacity-100 transition-opacity">
+            <div className="w-8 h-8 rounded-full bg-background-secondary border border-border flex items-center justify-center mr-3 flex-shrink-0 text-sm">
+              {SIFT_ICON}
             </div>
-            {modelId && <span className="text-xs ml-2 text-light/70">({modelId.split('/').pop()?.split(':').shift()})</span>}
+            <div className="flex-grow">
+              <div className="flex items-center mb-1">
+                <span className="font-semibold text-sm mr-2">
+                  Assistant
+                  {isFromCache && <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20" title="Loaded from local cache">CACHED</span>}
+                </span>
+                {modelId && <span className="text-[10px] text-text-light uppercase tracking-wider">{modelId.split('/').pop()?.split(':').shift()}</span>}
+              </div>
+              
+              {isLoading && (
+                <div className="thinking-chip">
+                  <div className="thinking-dot"></div>
+                  <span>Thinking...</span>
+                </div>
+              )}
+
+              {renderContent()}
+            </div>
           </div>
         )}
         
-        {isUser && <p className="font-semibold mb-1 text-sm text-on-primary">You</p>}
-
-        {isUser && uploadedFiles && uploadedFiles.length > 0 && (
-            <div className="my-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {uploadedFiles.map((file, index) => (
-                    <FilePreview key={index} file={file} />
-                ))}
+        {isUser && (
+          <div>
+            {uploadedFiles && uploadedFiles.length > 0 && (
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                    {uploadedFiles.map((file, index) => (
+                        <FilePreview key={index} file={file} />
+                    ))}
+                </div>
+            )}
+            <div className="text-[15px] leading-relaxed">
+              {renderContent()}
             </div>
-        )}
-        
-        {renderContent()}
-
-        {isLoading && (
-          <div className="flex items-center mt-2">
-            <svg className="animate-spin h-4 w-4 mr-2 text-light" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span className="text-xs text-light">SIFTing...</span>
           </div>
         )}
+
         {isError && !isLoading && (
-            <p className="text-xs text-status-error mt-1">Failed to generate response.</p>
+            <p className="text-xs text-status-error mt-2 font-medium flex items-center">
+              <span className="mr-1">⚠️</span> Failed to generate response.
+            </p>
         )}
 
         {groundingSources && groundingSources.length > 0 && !isLoading && !isError && (

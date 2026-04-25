@@ -15,6 +15,8 @@ import * as SessionManager from './utils/sessionManager.ts';
 import * as DownloadUtils from './utils/download.ts';
 import { useAppStore } from './store.ts';
 import { useAuth } from './contexts/AuthContext.tsx';
+import { Menu, BarChart3 } from 'lucide-react';
+import { SIFT_ICON } from './constants.ts';
 import { 
   ReportType, 
   ChatMessage, 
@@ -365,13 +367,16 @@ export const App = (): React.ReactElement => {
       {/* Main Workspace */}
       <main className={`flex-grow flex flex-col min-w-0 transition-all duration-300 relative`}>
         {/* Mobile Header Toggle */}
-        <div className="md:hidden p-2 border-b border-ui flex justify-between items-center bg-content">
-            <button onClick={() => setIsLeftSidebarOpen(true)} className="p-2 text-primary-accent" aria-label="Open sidebar">
-                <span className="material-symbols-outlined">menu</span>
+        <div className="md:hidden p-4 border-b border-border flex justify-between items-center bg-background-secondary">
+            <button onClick={() => setIsLeftSidebarOpen(true)} className="p-1 text-text-light" aria-label="Open sidebar">
+                <Menu size={24} />
             </button>
-            <h1 className="font-bold text-primary-accent">SIFT Toolbox</h1>
-            <button onClick={() => setIsRightSidebarOpen(true)} className="p-2 text-primary-accent" aria-label="Open sources">
-                <span className="material-symbols-outlined">analytics</span>
+            <div className="flex items-center">
+              <span className="text-lg mr-2">{SIFT_ICON}</span>
+              <h1 className="font-bold text-text text-sm uppercase tracking-widest">SIFT BOX</h1>
+            </div>
+            <button onClick={() => setIsRightSidebarOpen(true)} className="p-1 text-text-light" aria-label="Open sources">
+                <BarChart3 size={24} />
             </button>
         </div>
 
