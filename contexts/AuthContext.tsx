@@ -41,9 +41,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     if (!auth) throw new Error('Firebase is not configured');
     try {
+      console.log("[Auth] Attempting sign-in from origin:", window.location.origin);
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Error signing in with Google", error);
+      if (error instanceof Error && error.message.includes('auth/unauthorized-domain')) {
+        console.error("DEBUG: This origin is not authorized in Firebase Console. Please add it to the authorized domains list.");
+      }
       throw error;
     }
   };
