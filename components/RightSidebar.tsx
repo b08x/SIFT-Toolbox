@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SourceAssessment, LinkValidationStatus } from '../types.ts';
 
 interface RightSidebarProps {
@@ -19,9 +19,41 @@ const LinkStatusDot: React.FC<{ status: LinkValidationStatus | undefined }> = ({
     }
 };
 
+const categorizeSource = (source: SourceAssessment): string => {
+    const text = (source.assessment + " " + source.notes + " " + source.name).toLowerCase();
+    
+    if (text.includes('fact-check') || text.includes('fact check') || text.includes('snopes') || text.includes('politifact') || text.includes('reuters fact check') || text.includes('ap news fact check') || text.includes('factchecker')) {
+        return 'Fact-Checkers';
+    }
+    
+    if (text.includes('primary source') || text.includes('original report') || text.includes('official document') || text.includes('eyewitness') || text.includes('direct quote') || text.includes('government') || text.includes('academic') || text.includes('peer-reviewed')) {
+        return 'Primary Sources';
+    }
+    
+    return 'Secondary Reports';
+};
+
 export const RightSidebar: React.FC<RightSidebarProps> = ({
     isOpen, onToggle, sources, onSelectSource
 }) => {
+    const groupedSources = useMemo(() => {
+        const groups: Record<string, SourceAssessment[]> = {
+            'Primary Sources': [],
+            'Fact-Checkers': [],
+            'Secondary Reports': []
+        };
+        
+        sources.forEach(source => {
+            const category = categorizeSource(source);
+            if (!groups[category]) {
+                groups[category] = [];
+            }
+            groups[category].push(source);
+        });
+        
+        return groups;
+    }, [sources]);
+
     return (
         <aside className={`${isOpen ? 'w-80' : 'w-12'} transition-all duration-300 bg-content border-l border-ui flex flex-col z-40 hidden md:flex`}>
             <div className="p-4 border-b border-ui flex items-center justify-between">
@@ -50,45 +82,55 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         ))}
                     </div>
                 ) : (
-                    <div className="p-4 space-y-3">
+                    <div className="p-4 space-y-4">
                         {sources.length === 0 ? (
                             <div className="text-center py-10">
                                 <span className="material-symbols-outlined text-light/30 text-4xl">search_off</span>
                                 <p className="text-xs text-light mt-2 italic">No sources analyzed yet.</p>
                             </div>
                         ) : (
-                            sources.map((source) => (
-                                <button
-                                    key={source.index}
-                                    onClick={() => onSelectSource(source)}
-                                    className="w-full text-left p-3 rounded-lg border border-ui hover:border-primary/50 hover:bg-main/50 transition-all group"
-                                >
-                                    <div className="flex items-start justify-between mb-1">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-xs font-bold px-1.5 py-0.5 bg-primary/20 text-primary-accent rounded border border-primary/30">
-                                                #{source.index}
-                                            </span>
-                                            <h4 className="text-sm font-semibold truncate max-w-[180px] text-main group-hover:text-primary-accent">
-                                                {source.name}
-                                            </h4>
+                            Object.entries(groupedSources).map(([category, categorySources]) => {
+                                if (categorySources.length === 0) return null;
+                                return (
+                                    <div key={category} className="mb-4">
+                                        <h3 className="text-xs font-bold text-light uppercase tracking-wider mb-2 border-b border-ui pb-1">{category}</h3>
+                                        <div className="space-y-3">
+                                            {categorySources.map((source) => (
+                                                <button
+                                                    key={source.index}
+                                                    onClick={() => onSelectSource(source)}
+                                                    className="w-full text-left p-3 rounded-lg border border-ui hover:border-primary/50 hover:bg-main/50 transition-all group"
+                                                >
+                                                    <div className="flex items-start justify-between mb-1">
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className="text-xs font-bold px-1.5 py-0.5 bg-primary/20 text-primary-accent rounded border border-primary/30">
+                                                                #{source.index}
+                                                            </span>
+                                                            <h4 className="text-sm font-semibold truncate max-w-[180px] text-main group-hover:text-primary-accent">
+                                                                {source.name}
+                                                            </h4>
+                                                        </div>
+                                                        <LinkStatusDot status={source.linkValidationStatus} />
+                                                    </div>
+                                                    <p className="text-xs text-light line-clamp-2 leading-relaxed">
+                                                        {source.assessment}
+                                                    </p>
+                                                    <div className="mt-2 flex items-center justify-between">
+                                                        <span className={`text-[10px] px-1.5 rounded-full ${
+                                                            parseFloat(source.rating) >= 4 ? 'bg-status-success/10 text-status-success' : 
+                                                            parseFloat(source.rating) >= 2.5 ? 'bg-status-warning/10 text-status-warning' : 
+                                                            'bg-status-error/10 text-status-error'
+                                                        }`}>
+                                                            Rating: {source.rating}/5
+                                                        </span>
+                                                        <span className="material-symbols-outlined text-xs text-light group-hover:text-primary-accent">open_in_new</span>
+                                                    </div>
+                                                </button>
+                                            ))}
                                         </div>
-                                        <LinkStatusDot status={source.linkValidationStatus} />
                                     </div>
-                                    <p className="text-xs text-light line-clamp-2 leading-relaxed">
-                                        {source.assessment}
-                                    </p>
-                                    <div className="mt-2 flex items-center justify-between">
-                                        <span className={`text-[10px] px-1.5 rounded-full ${
-                                            parseFloat(source.rating) >= 4 ? 'bg-status-success/10 text-status-success' : 
-                                            parseFloat(source.rating) >= 2.5 ? 'bg-status-warning/10 text-status-warning' : 
-                                            'bg-status-error/10 text-status-error'
-                                        }`}>
-                                            Rating: {source.rating}/5
-                                        </span>
-                                        <span className="material-symbols-outlined text-xs text-light group-hover:text-primary-accent">open_in_new</span>
-                                    </div>
-                                </button>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 )}

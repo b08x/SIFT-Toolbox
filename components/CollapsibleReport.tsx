@@ -1,11 +1,12 @@
 
 
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ParsedReportSection } from '../types.ts';
 import { ReasoningModal } from './ReasoningModal.tsx';
+import { LayoutList, List } from 'lucide-react';
 
 interface CollapsibleReportProps {
   sections: ParsedReportSection[];
@@ -21,6 +22,15 @@ export const CollapsibleReport: React.FC<CollapsibleReportProps> = ({ sections, 
 
   const [openSections, setOpenSections] = useState<Set<number>>(new Set([initialOpenIndex]));
   const [isReasoningModalOpen, setIsReasoningModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'compact' | 'detailed'>('compact');
+
+  useEffect(() => {
+      if (viewMode === 'detailed') {
+          setOpenSections(new Set(sections.map((_, i) => i)));
+      } else {
+          setOpenSections(new Set([initialOpenIndex]));
+      }
+  }, [viewMode, sections, initialOpenIndex]);
 
   const toggleSection = (index: number) => {
     setOpenSections(prev => {
@@ -32,10 +42,33 @@ export const CollapsibleReport: React.FC<CollapsibleReportProps> = ({ sections, 
       }
       return newSet;
     });
+    // If they manually toggle, we don't necessarily want to force viewMode state, 
+    // but we can just let it be, or we can check if all are open.
   };
 
   return (
     <div className="flex flex-col gap-2 mt-2">
+      <div className="flex justify-end mb-1">
+        <div className="inline-flex bg-content border border-ui rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('compact')}
+            className={`flex items-center px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              viewMode === 'compact' ? 'bg-primary text-on-primary shadow-sm' : 'text-light hover:text-main'
+            }`}
+          >
+            <List size={14} className="mr-1.5" /> Compact
+          </button>
+          <button
+            onClick={() => setViewMode('detailed')}
+            className={`flex items-center px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              viewMode === 'detailed' ? 'bg-primary text-on-primary shadow-sm' : 'text-light hover:text-main'
+            }`}
+          >
+            <LayoutList size={14} className="mr-1.5" /> Detailed
+          </button>
+        </div>
+      </div>
+
       {sections.map((section, index) => {
         const isOpen = openSections.has(index);
         return (

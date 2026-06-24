@@ -423,7 +423,8 @@ export class AgenticApiService {
         try {
             const systemPrompt = `You are a helpful assistant. Based on the provided fact-checking/contextualization report, suggest exactly three follow-up search queries that the user could run to deep-dive into the claims or topics mentioned. Return ONLY a JSON array of strings, with no markdown formatting or other text. Example: ["Query 1", "Query 2", "Query 3"]`;
             
-            const model = getVercelModel(this.provider, this.modelConfig.id, this.userApiKeys);
+            const apiKey = this.userApiKeys[this.provider];
+            const model = getVercelModel(this.provider, apiKey, this.modelConfig.id);
             
             const { text } = await generateText({
                 model: model as any,
