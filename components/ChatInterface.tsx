@@ -2,6 +2,7 @@ import React, { useRef, useEffect, forwardRef } from 'react';
 import { ChatMessage, SourceAssessment, CustomCommand } from '../types.ts';
 import { ChatMessageItem } from './ChatMessageItem.tsx';
 import { ChatInputArea } from './ChatInputArea.tsx';
+import { SiftStepTracker } from './SiftStepTracker.tsx';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -33,6 +34,8 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const loadingMessage = messages.find(m => m.isLoading && m.sender === 'ai');
+
   return (
     <div className="flex flex-col h-full bg-main overflow-hidden">
       {/* Chat Messages Area */}
@@ -41,6 +44,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
           {messages.map((msg) => (
             <ChatMessageItem key={msg.id} message={msg} sourceAssessments={sourceAssessments} onSourceIndexClick={onSourceIndexClick} />
           ))}
+          {isLoading && <SiftStepTracker isLoading={isLoading} streamedText={loadingMessage?.text} />}
           <div ref={messagesEndRef} />
         </div>
       </div>
