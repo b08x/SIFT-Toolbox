@@ -11,12 +11,14 @@ import {
   Sparkles,
   Plus,
   Link as LinkIcon,
-  MessageSquareText
+  MessageSquareText,
+  Info
 } from 'lucide-react';
 
 interface SessionConfigurationViewProps {
     isApiKeyValid: boolean;
     onOpenSettings: () => void;
+    onOpenLearnSift: () => void;
     
     sessionTopic: string;
     setSessionTopic: (topic: string) => void;
@@ -35,7 +37,7 @@ interface SessionConfigurationViewProps {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> = ({
-    isApiKeyValid, onOpenSettings,
+    isApiKeyValid, onOpenSettings, onOpenLearnSift,
     sessionTopic, setSessionTopic, sessionContext, setSessionContext, sessionFiles, setSessionFiles,
     sessionUrls, setSessionUrls,
     onStartSession, onRestoreSession, showRestoreButton
@@ -122,12 +124,18 @@ export const SessionConfigurationView: React.FC<SessionConfigurationViewProps> =
 
         return (
             <div className="max-w-2xl mx-auto space-y-12">
-                <header className="text-center space-y-2">
+                <header className="text-center space-y-2 relative">
                   <div className="inline-flex items-center justify-center w-12 h-12 bg-background-secondary border border-border rounded-xl mb-4">
                     <Sparkles size={24} className="text-primary" />
                   </div>
                   <h1 className="text-2xl font-bold uppercase tracking-widest text-text">New Investigation</h1>
                   <p className="text-text-light text-sm">Configure your search and analysis parameters</p>
+                  <button 
+                    onClick={onOpenLearnSift} 
+                    className="text-xs text-primary hover:text-primary-dark font-semibold inline-flex items-center justify-center mt-2 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                  >
+                      <Info size={14} className="mr-1.5" /> What is the SIFT Methodology?
+                  </button>
                 </header>
 
                 <div className="space-y-8">

@@ -15,7 +15,8 @@ import {
   Monitor, 
   Share, 
   ChevronLeft, 
-  ChevronRight 
+  ChevronRight,
+  BookOpen
 } from 'lucide-react';
 
 interface LeftSidebarProps {
@@ -24,13 +25,14 @@ interface LeftSidebarProps {
     onNewSession: () => void;
     onOpenConfig: () => void;
     onOpenAbout: () => void;
+    onOpenLearnSift: () => void;
     onOpenSettings: () => void;
     onOpenExport: () => void;
     currentView: 'config' | 'chat' | 'about';
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
-    isOpen, onToggle, onNewSession, onOpenConfig, onOpenAbout, onOpenSettings, onOpenExport, currentView
+    isOpen, onToggle, onNewSession, onOpenConfig, onOpenAbout, onOpenLearnSift, onOpenSettings, onOpenExport, currentView
 }) => {
     const { user, signInWithGoogle, signOut, isConfigured } = useAuth();
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
@@ -121,10 +123,17 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 />
                 <SidebarItem 
                     icon={<Info size={20} />} 
-                    label="About SIFT" 
+                    label="About App" 
                     onClick={onOpenAbout} 
                     collapsed={!isOpen} 
                     active={currentView === 'about'} 
+                />
+                <SidebarItem 
+                    icon={<BookOpen size={20} />} 
+                    label="Learn SIFT" 
+                    onClick={onOpenLearnSift} 
+                    collapsed={!isOpen} 
+                    active={false} 
                 />
             </nav>
 

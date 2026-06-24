@@ -9,6 +9,7 @@ import { SessionConfigurationView } from './components/SessionConfigurationView.
 import { LeftSidebar } from './components/LeftSidebar.tsx';
 import { RightSidebar } from './components/RightSidebar.tsx';
 import { AboutContent } from './components/LandingPage.tsx';
+import { LearnSiftModal } from './components/LearnSiftModal.tsx';
 import { LiveConversationView } from './components/LiveConversationView.tsx';
 import { ExportSessionModal } from './components/ExportSessionModal.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
@@ -41,6 +42,7 @@ export const App = (): React.ReactElement => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isLiveConversationOpen, setIsLiveConversationOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isLearnSiftModalOpen, setIsLearnSiftModalOpen] = useState(false);
   const [selectedSourceForModal, setSelectedSourceForModal] = useState<SourceAssessment | null>(null);
 
   // Operational State
@@ -355,6 +357,7 @@ export const App = (): React.ReactElement => {
         onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
         onNewSession={handleNewSession}
         onOpenAbout={() => handleNavClick('about')}
+        onOpenLearnSift={() => setIsLearnSiftModalOpen(true)}
         onOpenSettings={() => {
             setIsSettingsModalOpen(true);
             if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
@@ -386,6 +389,7 @@ export const App = (): React.ReactElement => {
                     <SessionConfigurationView 
                         isApiKeyValid={true}
                         onOpenSettings={() => setIsSettingsModalOpen(true)}
+                        onOpenLearnSift={() => setIsLearnSiftModalOpen(true)}
                         sessionTopic={store.sessionTopic}
                         setSessionTopic={store.setSessionTopic}
                         sessionContext={store.sessionContext}
@@ -492,6 +496,13 @@ export const App = (): React.ReactElement => {
             onOpenSettings={() => setIsSettingsModalOpen(true)}
             apiKeyValidation={store.apiKeyValidation}
             onClose={() => setIsLiveConversationOpen(false)}
+          />
+      )}
+
+      {isLearnSiftModalOpen && (
+          <LearnSiftModal
+            isOpen={isLearnSiftModalOpen}
+            onClose={() => setIsLearnSiftModalOpen(false)}
           />
       )}
     </div>
