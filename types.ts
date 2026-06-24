@@ -47,6 +47,7 @@ export interface ChatMessage {
   isFromCache?: boolean;
   structuredData?: any;
   reasoning?: string;
+  followUpQueries?: string[];
 }
 
 // For the new left query panel

@@ -12,6 +12,7 @@ interface ChatMessageItemProps {
   message: ChatMessage;
   sourceAssessments: SourceAssessment[];
   onSourceIndexClick: (index: number) => void;
+  onFollowUpClick?: (query: string) => void;
 }
 
 const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
@@ -38,8 +39,8 @@ const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     );
 };
 
-export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments, onSourceIndexClick }) => {
-  const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData } = message;
+export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments, onSourceIndexClick, onFollowUpClick }) => {
+  const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData, followUpQueries } = message;
   const isUser = sender === 'user';
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const copyMenuRef = useRef<HTMLDivElement>(null);
@@ -282,6 +283,26 @@ ${groundingSourcesText}
               Export Report
             </button>
           </div>
+        )}
+        
+        {followUpQueries && followUpQueries.length > 0 && !isLoading && !isError && (
+            <div className="mt-4 pt-3 border-t border-ui">
+                <p className="text-xs font-semibold text-light uppercase tracking-wider mb-2">Deep Dive Queries</p>
+                <div className="flex flex-wrap gap-2">
+                    {followUpQueries.map((query, index) => (
+                        <button
+                            key={index}
+                            onClick={() => onFollowUpClick && onFollowUpClick(query)}
+                            className="bg-primary/5 hover:bg-primary/15 text-primary border border-primary/20 hover:border-primary/40 px-3 py-1.5 text-xs font-medium rounded-full shadow-sm transition-all flex items-center"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 mr-1.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                            </svg>
+                            {query}
+                        </button>
+                    ))}
+                </div>
+            </div>
         )}
         
         <div className="flex justify-between items-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">

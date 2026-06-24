@@ -42,7 +42,13 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
       <div ref={ref} className="flex-grow overflow-y-auto pt-8 pb-4 space-y-2">
         <div className="max-w-4xl mx-auto w-full">
           {messages.map((msg) => (
-            <ChatMessageItem key={msg.id} message={msg} sourceAssessments={sourceAssessments} onSourceIndexClick={onSourceIndexClick} />
+            <ChatMessageItem 
+                key={msg.id} 
+                message={msg} 
+                sourceAssessments={sourceAssessments} 
+                onSourceIndexClick={onSourceIndexClick} 
+                onFollowUpClick={(query) => onSendMessage(query)}
+            />
           ))}
           {isLoading && <SiftStepTracker isLoading={isLoading} streamedText={loadingMessage?.text} />}
           <div ref={messagesEndRef} />

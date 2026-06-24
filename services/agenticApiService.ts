@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Part, GenerateContentResponse, Content } from "@google/genai";
-import { streamText, CoreMessage } from 'ai';
+import { streamText, generateText, CoreMessage } from 'ai';
 import { getVercelModel } from './providerFactory.ts';
 import { 
     AIProvider, 
@@ -414,6 +414,34 @@ export class AgenticApiService {
         } catch (e: any) {
             console.error("[streamSiftAnalysis] Error details:", e);
             yield { type: 'error', error: e.message || 'An error occurred during generation.' };
+        }
+    }
+
+    public async suggestFollowUpQueries(reportText: string): Promise<string[]> {
+        if (!this.modelConfig) return [];
+        
+        try {
+            const systemPrompt = `You are a helpful assistant. Based on the provided fact-checking/contextualization report, suggest exactly three follow-up search queries that the user could run to deep-dive into the claims or topics mentioned. Return ONLY a JSON array of strings, with no markdown formatting or other text. Example: ["Query 1", "Query 2", "Query 3"]`;
+            
+            const model = getVercelModel(this.provider, this.modelConfig.id, this.userApiKeys);
+            
+            const { text } = await generateText({
+                model: model as any,
+                messages: [{ role: 'user', content: reportText }],
+                system: systemPrompt,
+                temperature: 0.7,
+            });
+            
+            const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const queries = JSON.parse(cleanedText);
+            
+            if (Array.isArray(queries) && queries.length > 0) {
+                return queries.slice(0, 3);
+            }
+            return [];
+        } catch (e) {
+            console.error("[suggestFollowUpQueries] Error generating follow-up queries:", e);
+            return [];
         }
     }
 }

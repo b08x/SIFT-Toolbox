@@ -179,6 +179,18 @@ export const App = (): React.ReactElement => {
                             store.updateSourceAssessments([{ ...assessment, linkValidationStatus: status }]);
                         });
                     }
+
+                    // Generate follow-up queries
+                    setLlmStatusMessage("Generating follow-up suggestions...");
+                    api.suggestFollowUpQueries(event.fullText).then(queries => {
+                        if (queries.length > 0) {
+                            store.updateChatMessage(aiMsgId, { followUpQueries: queries });
+                        }
+                    }).catch(err => console.error("Follow-up error:", err)).finally(() => {
+                        setLlmStatusMessage(null);
+                        handleSaveSession();
+                    });
+
                     break;
             }
         }
@@ -187,8 +199,7 @@ export const App = (): React.ReactElement => {
         store.updateChatMessage(aiMsgId, { text: "An unexpected connection error occurred.", isError: true, isLoading: false });
     } finally {
         setIsLoading(false);
-        setLlmStatusMessage(null);
-        handleSaveSession();
+        // llmStatusMessage is cleared and saveSession is called in the follow-up then block
     }
   }, [store, isLoading]);
 
