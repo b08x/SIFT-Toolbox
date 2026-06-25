@@ -44,25 +44,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
     <style>
       :root {
-        /* Field Note theme tokens */
-        --bg:        #EDE6D6;
-        --bg2:       #E3DBC8;
-        --surface:   #E3DBC8;
-        --border-color: #D2C7B4; /* Renamed to not conflict with tailwind border class but tailwind doesn't use it, wait: original had --border */
-        --border2:   #C9B8A0;
-        --amber:     #B5654A;
-        --amber-hi:  #C97A5E;
-        --text-color: #2A2420;
-        --text2:     #5C5248;
-        --muted:     #8A7F72;
-        --dim:       #B0A492;
-        --red:       #A8453A;
+        /* Theme tokens extracted from image */
+        --bg:        #F1EADD;
+        --bg2:       #E6DFD1;
+        --surface:   #E6DFD1;
+        --border-color: #A42A27;
+        --border2:   #C24541;
+        --amber:     #2B638A;
+        --amber-hi:  #3A7CB0;
+        --text-color: #262626;
+        --text2:     #666666;
+        --muted:     #7A8490;
+        --dim:       #A3A3A3;
+        --red:       #A42A27;
         
-        --badge-blue:    #5C7C99;
-        --badge-green:   #6B7F52;
-        --badge-red:     #A8453A;
-        --badge-neutral: #8A7F72;
-        --badge-text:    #F4EFE3;
+        --badge-blue:    #2B638A;
+        --badge-green:   #6FA862;
+        --badge-red:     #A42A27;
+        --badge-neutral: #7A8490;
+        --badge-text:    #F1EADD;
 
         /* App specific mappings */
         --background: var(--bg);
@@ -71,7 +71,7 @@
         --text-light: var(--muted);
         --border: var(--border-color);
         --primary: var(--amber);
-        --primary-rgb: 181, 101, 74;
+        --primary-rgb: 43, 99, 138;
         --primary-text: var(--badge-text);
         --status-success: var(--badge-green);
         --status-error: var(--red);
@@ -82,25 +82,25 @@
       }
 
       html.dark:root {
-        /* Dark mode - Field Note Theme Adapted */
-        --bg:        #2A2420;
-        --bg2:       #332d29;
-        --surface:   #332d29;
-        --border-color: #5C5248;
-        --border2:   #8A7F72;
-        --amber:     #C97A5E;
-        --amber-hi:  #B5654A;
-        --text-color: #EDE6D6;
-        --text2:     #B0A492;
-        --muted:     #8A7F72;
-        --dim:       #5C5248;
-        --red:       #A8453A;
+        /* Dark mode - Theme extracted from image */
+        --bg:        #1A1D27;
+        --bg2:       #222634;
+        --surface:   #222634;
+        --border-color: #A42A27;
+        --border2:   #C24541;
+        --amber:     #2B638A;
+        --amber-hi:  #3A7CB0;
+        --text-color: #D1D8E0;
+        --text2:     #8F9AA6;
+        --muted:     #7A8490;
+        --dim:       #4B5563;
+        --red:       #A42A27;
 
-        --badge-blue:    #5C7C99;
-        --badge-green:   #6B7F52;
-        --badge-red:     #A8453A;
-        --badge-neutral: #8A7F72;
-        --badge-text:    #2A2420;
+        --badge-blue:    #2B638A;
+        --badge-green:   #6FA862;
+        --badge-red:     #A42A27;
+        --badge-neutral: #7A8490;
+        --badge-text:    #D1D8E0;
 
         /* App specific mappings */
         --background: var(--bg);
@@ -109,7 +109,7 @@
         --text-light: var(--text2);
         --border: var(--border-color);
         --primary: var(--amber);
-        --primary-rgb: 201, 122, 94;
+        --primary-rgb: 43, 99, 138;
         --primary-text: var(--badge-text);
         --status-success: var(--badge-green);
         --status-error: var(--red);
@@ -118,24 +118,24 @@
 
       @media (prefers-color-scheme: dark) {
         html:not(.light):root {
-          --bg:        #2A2420;
-          --bg2:       #332d29;
-          --surface:   #332d29;
-          --border-color: #5C5248;
-          --border2:   #8A7F72;
-          --amber:     #C97A5E;
-          --amber-hi:  #B5654A;
-          --text-color: #EDE6D6;
-          --text2:     #B0A492;
-          --muted:     #8A7F72;
-          --dim:       #5C5248;
-          --red:       #A8453A;
+          --bg:        #1A1D27;
+          --bg2:       #222634;
+          --surface:   #222634;
+          --border-color: #A42A27;
+          --border2:   #C24541;
+          --amber:     #2B638A;
+          --amber-hi:  #3A7CB0;
+          --text-color: #D1D8E0;
+          --text2:     #8F9AA6;
+          --muted:     #7A8490;
+          --dim:       #4B5563;
+          --red:       #A42A27;
 
-          --badge-blue:    #5C7C99;
-          --badge-green:   #6B7F52;
-          --badge-red:     #A8453A;
-          --badge-neutral: #8A7F72;
-          --badge-text:    #2A2420;
+          --badge-blue:    #2B638A;
+          --badge-green:   #6FA862;
+          --badge-red:     #A42A27;
+          --badge-neutral: #7A8490;
+          --badge-text:    #D1D8E0;
 
           --background: var(--bg);
           --background-secondary: var(--bg2);
@@ -143,7 +143,7 @@
           --text-light: var(--text2);
           --border: var(--border-color);
           --primary: var(--amber);
-          --primary-rgb: 201, 122, 94;
+          --primary-rgb: 43, 99, 138;
           --primary-text: var(--badge-text);
           --status-success: var(--badge-green);
           --status-error: var(--red);
