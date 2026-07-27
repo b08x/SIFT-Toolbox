@@ -1,6 +1,7 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SourceAssessment, LinkValidationStatus } from '../types.ts';
+import { D3GraphView } from './D3GraphView.tsx';
 
 interface RightSidebarProps {
     isOpen: boolean;
@@ -36,6 +37,8 @@ const categorizeSource = (source: SourceAssessment): string => {
 export const RightSidebar: React.FC<RightSidebarProps> = ({
     isOpen, onToggle, sources, onSelectSource
 }) => {
+    const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+
     const groupedSources = useMemo(() => {
         const groups: Record<string, SourceAssessment[]> = {
             'Primary Sources': [],
@@ -66,7 +69,24 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                 <div className="w-6" /> {/* Spacer */}
             </div>
 
-            <div className="flex-grow overflow-y-auto">
+            {isOpen && (
+                <div className="flex border-b border-ui">
+                    <button 
+                        onClick={() => setViewMode('list')} 
+                        className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${viewMode === 'list' ? 'text-primary-accent border-b-2 border-primary-accent' : 'text-light hover:text-main'}`}
+                    >
+                        List
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('graph')} 
+                        className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${viewMode === 'graph' ? 'text-primary-accent border-b-2 border-primary-accent' : 'text-light hover:text-main'}`}
+                    >
+                        Graph
+                    </button>
+                </div>
+            )}
+
+            <div className={`flex-grow overflow-y-auto ${viewMode === 'graph' && isOpen ? 'overflow-hidden' : ''}`}>
                 {!isOpen ? (
                     <div className="flex flex-col items-center py-4 space-y-4">
                         <span className="material-symbols-outlined text-primary-accent">fact_check</span>
@@ -82,15 +102,33 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         ))}
                     </div>
                 ) : (
-                    <div className="p-4 space-y-4">
-                        {sources.length === 0 ? (
-                            <div className="text-center py-10">
-                                <span className="material-symbols-outlined text-light/30 text-4xl">search_off</span>
-                                <p className="text-xs text-light mt-2 italic">No sources analyzed yet.</p>
-                            </div>
-                        ) : (
-                            Object.entries(groupedSources).map(([category, categorySources]) => {
-                                if (categorySources.length === 0) return null;
+                    viewMode === 'graph' ? (
+                        <div className="w-full h-full min-h-[400px]">
+                            {sources.length === 0 ? (
+                                <div className="text-center py-10">
+                                    <span className="material-symbols-outlined text-light/30 text-4xl">search_off</span>
+                                    <p className="text-xs text-light mt-2 italic">No sources analyzed yet.</p>
+                                </div>
+                            ) : (
+                                <D3GraphView 
+                                    sources={sources} 
+                                    onNodeClick={(id) => {
+                                        const src = sources.find(s => s.index.toString() === id);
+                                        if (src) onSelectSource(src);
+                                    }} 
+                                />
+                            )}
+                        </div>
+                    ) : (
+                        <div className="p-4 space-y-4">
+                            {sources.length === 0 ? (
+                                <div className="text-center py-10">
+                                    <span className="material-symbols-outlined text-light/30 text-4xl">search_off</span>
+                                    <p className="text-xs text-light mt-2 italic">No sources analyzed yet.</p>
+                                </div>
+                            ) : (
+                                Object.entries(groupedSources).map(([category, categorySources]) => {
+                                    if (categorySources.length === 0) return null;
                                 return (
                                     <div key={category} className="mb-4">
                                         <h3 className="text-xs font-bold text-light uppercase tracking-wider mb-2 border-b border-ui pb-1">{category}</h3>
@@ -133,6 +171,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                             })
                         )}
                     </div>
+                    )
                 )}
             </div>
         </aside>

@@ -252,6 +252,123 @@ export const App = (): React.ReactElement => {
     }
   }, [store, user]);
 
+  const handleRetryMessage = useCallback(async (messageId: string) => {
+    if (isLoading) return;
+
+    const msgIndex = store.chatMessages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
+
+    const aiMsg = store.chatMessages[msgIndex];
+    if (aiMsg.sender !== 'ai') return;
+
+    // Find the preceding user message to get the query
+    const historyBefore = store.chatMessages.slice(0, msgIndex);
+    const userMsg = historyBefore[historyBefore.length - 1];
+    if (!userMsg || userMsg.sender !== 'user') return;
+
+    const text = userMsg.text;
+    const isInitial = msgIndex === 1; // Assuming initial query is the first AI message (index 1)
+
+    setIsLoading(true);
+    setLlmStatusMessage("Preparing analysis...");
+
+    // Reset the AI message
+    store.updateChatMessage(messageId, { 
+        text: '', 
+        isLoading: true, 
+        isError: false,
+        modelId: store.selectedModelId,
+        groundingSources: undefined,
+        followUpQueries: undefined
+    });
+
+    abortControllerRef.current = new AbortController();
+
+    const api = new AgenticApiService(
+        store.selectedProviderKey,
+        store.selectedModelId,
+        store.userApiKeys,
+        store.enableGeminiPreprocessing,
+        store.availableModels
+    );
+
+    const queryInfo: OriginalQueryInfo = {
+        text: text,
+        files: isInitial ? store.sessionFiles : [],
+        urls: isInitial ? store.sessionUrls.split('\n').filter(u => u.trim()) : [],
+        reportType: ReportType.FULL_CHECK
+    };
+
+    try {
+        const stream = api.streamSiftAnalysis({
+            isInitialQuery: isInitial,
+            query: isInitial ? queryInfo : text,
+            fullChatHistory: historyBefore,
+            modelConfigParams: store.modelConfigParams,
+            signal: abortControllerRef.current.signal,
+            customSystemPrompt: store.customSystemPrompt,
+        });
+
+        let fullText = '';
+        for await (const event of stream) {
+            switch (event.type) {
+                case 'status':
+                    setLlmStatusMessage(event.message);
+                    break;
+                case 'chunk':
+                    fullText += event.text;
+                    store.updateChatMessage(messageId, { text: fullText });
+                    break;
+                case 'sources':
+                    store.updateChatMessage(messageId, { groundingSources: event.sources });
+                    break;
+                case 'error':
+                    store.updateChatMessage(messageId, { text: event.error, isError: true, isLoading: false });
+                    setIsLoading(false);
+                    setLlmStatusMessage(null);
+                    return;
+                case 'final':
+                    store.updateChatMessage(messageId, { 
+                        text: event.fullText, 
+                        isLoading: false, 
+                        isInitialSIFTReport: event.isInitialSIFTReport,
+                        originalQueryReportType: event.originalQueryReportType
+                    });
+                    
+                    if (event.isInitialSIFTReport) {
+                        const assessments = parseSourceAssessmentsFromMarkdown(event.fullText);
+                        const indexedAssessments = assessments.map((a, i) => ({ ...a, index: i + 1 }));
+                        store.setSourceAssessments(indexedAssessments);
+                        
+                        // Async check links
+                        indexedAssessments.forEach(async (assessment) => {
+                            const status = await checkLinkStatus(assessment.url);
+                            store.updateSourceAssessments([{ ...assessment, linkValidationStatus: status }]);
+                        });
+                    }
+
+                    // Generate follow-up queries
+                    setLlmStatusMessage("Generating follow-up suggestions...");
+                    api.suggestFollowUpQueries(event.fullText).then(queries => {
+                        if (queries.length > 0) {
+                            store.updateChatMessage(messageId, { followUpQueries: queries });
+                        }
+                    }).catch(err => console.error("Follow-up error:", err)).finally(() => {
+                        setLlmStatusMessage(null);
+                        handleSaveSession();
+                    });
+
+                    break;
+            }
+        }
+    } catch (e) {
+        console.error("Stream error:", e);
+        store.updateChatMessage(messageId, { text: "An unexpected connection error occurred.", isError: true, isLoading: false });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [store, isLoading, handleSaveSession]);
+
   // Periodic Save
   useEffect(() => {
     const interval = setInterval(() => {
@@ -423,6 +540,7 @@ export const App = (): React.ReactElement => {
                     onSendMessage={handleSendMessage}
                     isLoading={isLoading}
                     onStopGeneration={() => abortControllerRef.current?.abort()}
+                    onRetryMessage={handleRetryMessage}
                     onSourceIndexClick={(idx) => {
                         const source = store.sourceAssessments.find(s => s.index === idx);
                         if (source) setSelectedSourceForModal(source);

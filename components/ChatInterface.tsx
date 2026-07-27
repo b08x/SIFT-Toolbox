@@ -10,10 +10,11 @@ interface ChatInterfaceProps {
   onSendMessage: (messageText: string, command?: 'another round' | 'read the room' | 'web_search' | 'trace_claim' | 'generate_context_report' | 'generate_community_note' | 'discourse_map' | 'explain_like_im_in_high_school' | CustomCommand) => void;
   isLoading: boolean;
   onStopGeneration?: () => void;
-  onRestartGeneration?: () => void; // New prop for restarting
+  onRestartGeneration?: () => void;
+  onRetryMessage?: (messageId: string) => void;
   onSourceIndexClick: (index: number) => void;
   onToggleLiveConversation: () => void;
-  canRestart?: boolean; // New prop to enable/disable restart button
+  canRestart?: boolean;
   supportsWebSearch?: boolean;
   llmStatusMessage: string | null;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
@@ -24,7 +25,7 @@ interface ChatInterfaceProps {
 
 export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ 
     messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, 
-    onRestartGeneration, canRestart, supportsWebSearch, onSourceIndexClick,
+    onRestartGeneration, onRetryMessage, canRestart, supportsWebSearch, onSourceIndexClick,
     onToggleLiveConversation, llmStatusMessage, saveStatus, lastSaveTime, onSaveSession,
     customCommands
 }, ref) => {
@@ -48,6 +49,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
                 sourceAssessments={sourceAssessments} 
                 onSourceIndexClick={onSourceIndexClick} 
                 onFollowUpClick={(query) => onSendMessage(query)}
+                onRetryClick={() => onRetryMessage?.(msg.id)}
             />
           ))}
           {isLoading && <SiftStepTracker isLoading={isLoading} streamedText={loadingMessage?.text} />}

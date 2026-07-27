@@ -13,6 +13,7 @@ interface ChatMessageItemProps {
   sourceAssessments: SourceAssessment[];
   onSourceIndexClick: (index: number) => void;
   onFollowUpClick?: (query: string) => void;
+  onRetryClick?: () => void;
 }
 
 const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
@@ -39,7 +40,7 @@ const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     );
 };
 
-export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments, onSourceIndexClick, onFollowUpClick }) => {
+export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments, onSourceIndexClick, onFollowUpClick, onRetryClick }) => {
   const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData, followUpQueries } = message;
   const isUser = sender === 'user';
   const [showCopyMenu, setShowCopyMenu] = useState(false);
@@ -54,6 +55,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourc
     return map;
   }, [sourceAssessments]);
 
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (copyMenuRef.current && !copyMenuRef.current.contains(event.target as Node)) {
@@ -65,6 +68,21 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourc
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [copyMenuRef]);
+
+  const handleReadAloud = () => {
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      // Basic text extraction from markdown, can be refined further if needed
+      const plainText = text.replace(/[#*_\[\]()>]/g, '');
+      const utterance = new SpeechSynthesisUtterance(plainText);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   const handleCopy = async (format: 'text' | 'substack') => {
     setShowCopyMenu(false); // Close menu after click
@@ -310,30 +328,60 @@ ${groundingSourcesText}
             {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
             {!isLoading && text.trim() && (
-                <div ref={copyMenuRef} className="relative">
+                <div className="flex items-center space-x-1">
                     <button
-                        onClick={() => setShowCopyMenu(prev => !prev)}
-                        title="Copy options"
+                        onClick={handleReadAloud}
+                        title={isSpeaking ? "Stop speaking" : "Read aloud"}
                         className={`p-1 rounded ${isUser ? 'text-on-primary hover:bg-black/20' : 'text-light hover:bg-border'}`}
-                        aria-haspopup="true"
-                        aria-expanded={showCopyMenu}
-                        aria-label="Copy message options"
+                        aria-label={isSpeaking ? "Stop speaking" : "Read aloud"}
                     >
-                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 4.625-2.25-2.25m0 0L15.75 12m2.25 2.25L15.75 12M9 11.25h6M9 13.5h3.75m-3.75 2.25h1.5m1.5 0h1.5" />
-                        </svg>
+                        {isSpeaking ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 9v6m-4.5 0V9M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                            </svg>
+                        )}
                     </button>
-                    {showCopyMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-content border border-ui rounded-md shadow-lg z-20 py-1">
-                            <button onClick={() => handleCopy('text')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-main hover:bg-border">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                                Copy as Plain Text
-                            </button>
-                            <button onClick={() => handleCopy('substack')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-main hover:bg-border">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9.75 6.75h9.75c.621 0 1.125-.504 1.125-1.125V6.375c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v10.25c0 .621.504 1.125 1.125 1.125z" /></svg>
-                                Copy for Substack (HTML)
-                            </button>
-                        </div>
+                    <div ref={copyMenuRef} className="relative">
+                        <button
+                            onClick={() => setShowCopyMenu(prev => !prev)}
+                            title="Copy options"
+                            className={`p-1 rounded ${isUser ? 'text-on-primary hover:bg-black/20' : 'text-light hover:bg-border'}`}
+                            aria-haspopup="true"
+                            aria-expanded={showCopyMenu}
+                            aria-label="Copy message options"
+                        >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 4.625-2.25-2.25m0 0L15.75 12m2.25 2.25L15.75 12M9 11.25h6M9 13.5h3.75m-3.75 2.25h1.5m1.5 0h1.5" />
+                            </svg>
+                        </button>
+                        {showCopyMenu && (
+                            <div className="absolute bottom-full right-0 mb-2 w-48 bg-content border border-ui rounded-md shadow-lg z-20 py-1">
+                                <button onClick={() => handleCopy('text')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-main hover:bg-border">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
+                                    Copy as Plain Text
+                                </button>
+                                <button onClick={() => handleCopy('substack')} className="flex items-center w-full text-left px-3 py-1.5 text-sm text-main hover:bg-border">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9.75 6.75h9.75c.621 0 1.125-.504 1.125-1.125V6.375c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v10.25c0 .621.504 1.125 1.125 1.125z" /></svg>
+                                    Copy for Substack (HTML)
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    {!isUser && onRetryClick && (
+                        <button
+                            onClick={onRetryClick}
+                            title="Retry response"
+                            className="p-1 rounded text-light hover:bg-border ml-1"
+                            aria-label="Retry response"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                        </button>
                     )}
                 </div>
             )}
