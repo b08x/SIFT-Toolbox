@@ -12,6 +12,7 @@ import { AboutContent } from './components/LandingPage.tsx';
 import { LearnSiftModal } from './components/LearnSiftModal.tsx';
 import { LiveConversationView } from './components/LiveConversationView.tsx';
 import { ExportSessionModal } from './components/ExportSessionModal.tsx';
+import { RecentSessionsModal } from './components/RecentSessionsModal.tsx';
 import * as SessionManager from './utils/sessionManager.ts';
 import * as DownloadUtils from './utils/download.ts';
 import { useAppStore } from './store.ts';
@@ -25,6 +26,7 @@ import {
   AIProvider, 
   SourceAssessment,
   CustomCommand,
+  RecentSessionItem,
 } from './types.ts';
 import { parseSourceAssessmentsFromMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
 import { marked } from 'marked';
@@ -43,6 +45,7 @@ export const App = (): React.ReactElement => {
   const [isLiveConversationOpen, setIsLiveConversationOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isLearnSiftModalOpen, setIsLearnSiftModalOpen] = useState(false);
+  const [isRecentSessionsModalOpen, setIsRecentSessionsModalOpen] = useState(false);
   const [selectedSourceForModal, setSelectedSourceForModal] = useState<SourceAssessment | null>(null);
 
   // Operational State
@@ -51,8 +54,19 @@ export const App = (): React.ReactElement => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
   const [hasSavedSession, setHasSavedSession] = useState(false);
+  const [recentSessions, setRecentSessions] = useState<RecentSessionItem[]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const refreshRecentSessions = useCallback(async () => {
+    try {
+      const list = await SessionManager.getRecentSessions(user?.uid);
+      setRecentSessions(list);
+      setHasSavedSession(list.length > 0);
+    } catch (err) {
+      console.warn("Failed to refresh recent sessions:", err);
+    }
+  }, [user?.uid]);
 
   // Initial setup: auto-fetch Gemini models if API key exists
   useEffect(() => {
@@ -76,12 +90,8 @@ export const App = (): React.ReactElement => {
   }, []);
 
   useEffect(() => {
-    const checkSavedSession = async () => {
-      const hasSession = await SessionManager.hasSavedSession(user?.uid);
-      setHasSavedSession(hasSession);
-    };
-    checkSavedSession();
-  }, [user]);
+    refreshRecentSessions();
+  }, [refreshRecentSessions]);
 
   const handleSendMessage = useCallback(async (
       text: string, 
@@ -226,7 +236,8 @@ export const App = (): React.ReactElement => {
   const handleSaveSession = useCallback(async () => {
     setSaveStatus('saving');
     try {
-        await SessionManager.saveSession({
+        const res = await SessionManager.saveSession({
+            sessionId: store.sessionId,
             chatMessages: store.chatMessages,
             sessionTopic: store.sessionTopic,
             sessionContext: store.sessionContext,
@@ -243,14 +254,20 @@ export const App = (): React.ReactElement => {
             apiKeyValidation: store.apiKeyValidation,
             customSystemPrompt: store.customSystemPrompt,
             customCommands: store.customCommands
-        }, user?.uid);
+        }, user?.uid, store.sessionId);
+
+        if (res && res.sessionId && res.sessionId !== store.sessionId) {
+          store.setSessionId(res.sessionId);
+        }
         setSaveStatus('saved');
         setLastSaveTime(new Date());
         setHasSavedSession(true);
+        refreshRecentSessions();
     } catch (e) {
+        console.error("Autosave/save error:", e);
         setSaveStatus('error');
     }
-  }, [store, user]);
+  }, [store, user, refreshRecentSessions]);
 
   const handleRetryMessage = useCallback(async (messageId: string) => {
     if (isLoading) return;
@@ -369,51 +386,98 @@ export const App = (): React.ReactElement => {
     }
   }, [store, isLoading, handleSaveSession]);
 
-  // Periodic Save
+  // Periodic Autosave
   useEffect(() => {
     const interval = setInterval(() => {
-      if (store.chatMessages.length > 0 || store.sessionTopic || store.sessionFiles.length > 0) {
+      if (store.chatMessages.length > 0 || store.sessionTopic.trim() || store.sessionFiles.length > 0 || store.sessionUrls.trim()) {
         handleSaveSession();
       }
-    }, 30000); // Save every 30 seconds
+    }, 20000); // Autosave every 20 seconds
     
     return () => clearInterval(interval);
+  }, [handleSaveSession, store.chatMessages.length, store.sessionTopic, store.sessionFiles.length, store.sessionUrls]);
+
+  // Autosave on tab close or background visibility switch
+  useEffect(() => {
+    const handleAutosave = () => {
+      if (store.chatMessages.length > 0 || store.sessionTopic.trim() || store.sessionFiles.length > 0) {
+        handleSaveSession();
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleAutosave();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleAutosave);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleAutosave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [handleSaveSession, store.chatMessages.length, store.sessionTopic, store.sessionFiles.length]);
 
-  // Save on session end (tab close)
-  useEffect(() => {
-    const handleUnload = () => {
-      // Note: async calls in unload/beforeunload are unreliable, 
-      // but SessionManager also uses localStorage which is sync.
-      handleSaveSession();
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [handleSaveSession]);
-
   const handleNewSession = useCallback(async () => {
-      if (store.chatMessages.length > 0) {
-          if (!window.confirm("Start a new session? Current progress will be saved but cleared from the view.")) return;
+      if (store.chatMessages.length > 0 || store.sessionTopic.trim() || store.sessionFiles.length > 0) {
           await handleSaveSession();
       }
       store.resetSession();
       setMainView('config');
+      refreshRecentSessions();
       if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
-  }, [store, handleSaveSession]);
+  }, [store, handleSaveSession, refreshRecentSessions]);
 
   const handleRestoreSession = useCallback(async () => {
       const saved = await SessionManager.loadSession(user?.uid);
       if (saved) {
           store.setInitialState(saved);
-          // If there are messages, go to chat view, otherwise stay in config to allow starting
+          if (saved.sessionId) store.setSessionId(saved.sessionId);
           if (saved.chatMessages && saved.chatMessages.length > 0) {
               setMainView('chat');
           } else {
               setMainView('config');
           }
+          refreshRecentSessions();
           if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
       }
-  }, [store, user]);
+  }, [store, user, refreshRecentSessions]);
+
+  const handleSelectRecentSession = useCallback(async (sessionId: string) => {
+    if ((store.chatMessages.length > 0 || store.sessionTopic.trim()) && store.sessionId !== sessionId) {
+      await handleSaveSession();
+    }
+    const loaded = await SessionManager.loadSessionById(sessionId, user?.uid);
+    if (loaded) {
+      store.setInitialState(loaded);
+      store.setSessionId(sessionId);
+      if (loaded.chatMessages && loaded.chatMessages.length > 0) {
+        setMainView('chat');
+      } else {
+        setMainView('config');
+      }
+      refreshRecentSessions();
+      if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+    }
+  }, [store, user?.uid, handleSaveSession, refreshRecentSessions]);
+
+  const handleDeleteRecentSession = useCallback(async (sessionId: string) => {
+    await SessionManager.deleteRecentSession(sessionId, user?.uid);
+    if (store.sessionId === sessionId) {
+      store.resetSession();
+      setMainView('config');
+    }
+    refreshRecentSessions();
+  }, [store, user?.uid, refreshRecentSessions]);
+
+  const handleClearAllRecentSessions = useCallback(async () => {
+    await SessionManager.clearAllRecentSessions(user?.uid);
+    store.resetSession();
+    setMainView('config');
+    setRecentSessions([]);
+    setHasSavedSession(false);
+  }, [store, user?.uid]);
 
   const handleExportSession = useCallback((format: 'pdf' | 'md' | 'html' | 'json') => {
     const sessionTopic = store.sessionTopic || "Unnamed Investigation";
@@ -493,6 +557,13 @@ export const App = (): React.ReactElement => {
         onOpenExport={() => setIsExportModalOpen(true)}
         currentView={mainView}
         onOpenConfig={() => handleNavClick('config')}
+        onOpenRecentSessions={() => {
+            setIsRecentSessionsModalOpen(true);
+            if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+        }}
+        recentSessions={recentSessions}
+        currentSessionId={store.sessionId}
+        onSelectSession={handleSelectRecentSession}
       />
 
       {/* Main Workspace */}
@@ -529,6 +600,9 @@ export const App = (): React.ReactElement => {
                         onStartSession={handleStartSession}
                         onRestoreSession={handleRestoreSession}
                         showRestoreButton={hasSavedSession}
+                        recentSessions={recentSessions}
+                        onSelectSession={handleSelectRecentSession}
+                        onOpenRecentSessions={() => setIsRecentSessionsModalOpen(true)}
                     />
                 </div>
             )}
@@ -632,6 +706,19 @@ export const App = (): React.ReactElement => {
           <LearnSiftModal
             isOpen={isLearnSiftModalOpen}
             onClose={() => setIsLearnSiftModalOpen(false)}
+          />
+      )}
+
+      {isRecentSessionsModalOpen && (
+          <RecentSessionsModal 
+            isOpen={isRecentSessionsModalOpen}
+            onClose={() => setIsRecentSessionsModalOpen(false)}
+            sessions={recentSessions}
+            currentSessionId={store.sessionId}
+            onSelectSession={handleSelectRecentSession}
+            onDeleteSession={handleDeleteRecentSession}
+            onClearAllSessions={handleClearAllRecentSessions}
+            onNewSession={handleNewSession}
           />
       )}
     </div>

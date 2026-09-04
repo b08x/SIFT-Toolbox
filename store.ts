@@ -46,6 +46,7 @@ interface AppStateActions {
   setSessionContext: (context: string) => void;
   setSessionFiles: (files: UploadedFile[] | ((prev: UploadedFile[]) => UploadedFile[])) => void;
   setSessionUrls: (urls: string) => void;
+  setSessionId: (id: string | undefined) => void;
 
   resetSession: () => void;
 }
@@ -73,6 +74,7 @@ const initialState: AppStateProperties = {
   sessionContext: '',
   sessionFiles: [],
   sessionUrls: '',
+  sessionId: undefined,
   availableModels: INITIAL_MODELS_CONFIG,
 };
 
@@ -155,8 +157,10 @@ export const useAppStore = create<AppState>((set) => ({
       }
   },
   setSessionUrls: (urls: string) => set({ sessionUrls: urls }),
+  setSessionId: (id: string | undefined) => set({ sessionId: id }),
   
   resetSession: () => set({
+    sessionId: undefined,
     chatMessages: [],
     originalQueryForRestart: null,
     currentSiftQueryDetails: null,

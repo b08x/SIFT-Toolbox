@@ -22,7 +22,7 @@ export interface UploadedFile {
     name: string;
     type: string; // MIME type
     size: number; // in bytes
-    base64Data: string; // data:mime/type;base64,...
+    base64Data?: string; // data:mime/type;base64,...
 }
 
 
@@ -165,6 +165,7 @@ export interface CustomCommand {
 
 // For Session Saving
 export interface SavedSessionState {
+  sessionId?: string;
   chatMessages: ChatMessage[];
   sessionTopic: string;
   sessionContext: string;
@@ -181,6 +182,27 @@ export interface SavedSessionState {
   apiKeyValidation: ApiKeyValidationStates;
   customSystemPrompt: string;
   customCommands: CustomCommand[];
+}
+
+export interface RecentSessionItem {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  sourceCount: number;
+  previewText?: string;
+  state: SavedSessionState;
+}
+
+export interface RecentSessionSummary {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  sourceCount: number;
+  previewText?: string;
 }
 
 

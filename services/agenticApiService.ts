@@ -306,7 +306,21 @@ export class AgenticApiService {
                    }
                 }
 
-                const contents: Content[] = history ? [...history, { role: 'user', parts: currentParts }] : [{ role: 'user', parts: currentParts }];
+                let contents: Content[] = [];
+                if (history && history.length > 0) {
+                    const cleanHistory = [...history];
+                    // Ensure alternating turns: if history ends with 'user', merge it with the new turn
+                    if (cleanHistory[cleanHistory.length - 1].role === 'user') {
+                        const lastUser = cleanHistory.pop()!;
+                        const existingText = lastUser.parts?.map(p => ('text' in p ? p.text : '')).join(' ') || '';
+                        if (existingText) {
+                            currentParts.unshift({ text: existingText });
+                        }
+                    }
+                    contents = [...cleanHistory, { role: 'user', parts: currentParts }];
+                } else {
+                    contents = [{ role: 'user', parts: currentParts }];
+                }
 
                 const responseStream = await this.geminiAi.models.generateContentStream({
                     model: this.modelConfig.id,
@@ -424,9 +438,26 @@ export class AgenticApiService {
         try {
             const systemPrompt = `You are a helpful assistant. Based on the provided fact-checking/contextualization report, suggest exactly three follow-up search queries that the user could run to deep-dive into the claims or topics mentioned. Return ONLY a JSON array of strings, with no markdown formatting or other text. Example: ["Query 1", "Query 2", "Query 3"]`;
             
+            if (this.provider === AIProvider.GOOGLE_GEMINI && this.geminiAi) {
+                const response = await this.geminiAi.models.generateContent({
+                    model: this.modelConfig.id,
+                    contents: reportText,
+                    config: {
+                        systemInstruction: systemPrompt,
+                        temperature: 0.7,
+                    }
+                });
+                const cleanedText = (response.text || '').replace(/```json/g, '').replace(/```/g, '').trim();
+                const queries = JSON.parse(cleanedText);
+                if (Array.isArray(queries) && queries.length > 0) {
+                    return queries.slice(0, 3);
+                }
+                return [];
+            }
+
             const providerApiKey = this.userApiKeys[this.provider];
             const apiKey = providerApiKey || (this.provider === AIProvider.GOOGLE_GEMINI ? process.env.API_KEY : undefined);
-            if (!apiKey) throw new Error(`API key missing for ${this.provider}`);
+            if (!apiKey) return [];
 
             const model = getVercelModel(this.provider, apiKey, this.modelConfig.id);
             

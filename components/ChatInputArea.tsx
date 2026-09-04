@@ -75,13 +75,36 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const renderSaveStatus = () => {
     switch (saveStatus) {
       case 'saving':
-        return <div className="flex items-center text-[10px] text-primary"><Loader2 size={10} className="animate-spin mr-1" /> SAVING</div>;
+        return (
+          <div className="flex items-center text-[10px] text-primary font-medium">
+            <Loader2 size={11} className="animate-spin mr-1" /> Autosaving...
+          </div>
+        );
       case 'saved':
-        return <div className="flex items-center text-[10px] text-status-success"><CheckCircle2 size={10} className="mr-1" /> {lastSaveTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>;
+        return (
+          <div className="flex items-center text-[10px] text-status-success font-medium">
+            <CheckCircle2 size={11} className="mr-1" /> Autosaved {lastSaveTime ? lastSaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+          </div>
+        );
       case 'error':
-        return <div className="flex items-center text-[10px] text-status-error"><AlertCircle size={10} className="mr-1" /> ERROR</div>;
+        return (
+          <div className="flex items-center text-[10px] text-status-error font-medium">
+            <AlertCircle size={11} className="mr-1" /> Autosave Error
+          </div>
+        );
       default:
-        return <div className="text-[10px] text-text-light/50">AUTO-SAVING</div>;
+        return (
+          <div className="flex items-center text-[10px] text-text-light/70">
+            {lastSaveTime ? (
+              <>
+                <CheckCircle2 size={10} className="mr-1 text-status-success/70" />
+                Autosaved {lastSaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </>
+            ) : (
+              'Autosave active'
+            )}
+          </div>
+        );
     }
   };
 

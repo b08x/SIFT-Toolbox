@@ -25,24 +25,24 @@ const finalConfig = {
 
 const databaseId = val(import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID) || val(firebaseConfig.firestoreDatabaseId);
 
-const app = initializeApp(finalConfig);
+export const isFirebaseConfigured = () => !!(finalConfig.apiKey && finalConfig.projectId);
 
-if (typeof window !== 'undefined') {
+export const app = isFirebaseConfigured() ? initializeApp(finalConfig) : null;
+
+if (typeof window !== 'undefined' && isFirebaseConfigured()) {
     console.log('[Firebase] Active Project:', finalConfig.projectId);
     console.log('[Firebase] Auth Domain:', finalConfig.authDomain);
 }
 
-export const auth = getAuth(app);
+export const auth = app ? getAuth(app) : null;
 // Ensure persistence is set for the browser environment
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && auth) {
     setPersistence(auth, browserLocalPersistence).catch(err => {
         console.warn("[Firebase] Could not set persistence:", err);
     });
 }
-export const db = getFirestore(app, databaseId);
+export const db = app ? (databaseId ? getFirestore(app, databaseId) : getFirestore(app)) : null;
 export const googleProvider = new GoogleAuthProvider();
-
-export const isFirebaseConfigured = () => !!finalConfig.apiKey;
 
 /**
  * Standard Firestore error handler as per security instructions.
@@ -69,13 +69,26 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  let errorMsg = 'Unknown Firestore error';
+  if (error instanceof Error) {
+    errorMsg = error.message;
+  } else if (typeof error === 'string') {
+    errorMsg = error;
+  } else {
+    try {
+      errorMsg = String(error);
+    } catch {
+      errorMsg = 'Unstringifiable error';
+    }
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMsg,
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
     },
     operationType,
     path

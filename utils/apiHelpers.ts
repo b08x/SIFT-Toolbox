@@ -65,21 +65,38 @@ export const getTruncatedHistoryForApi = (
       }
     });
     
-    // Filter out any error or loading messages before final conversion
+    // Filter out any error, loading, or empty messages before final conversion
     const validMessagesForHistory = processedMessages.filter(
-      msg => !msg.isError && !msg.isLoading
+      msg => !msg.isError && !msg.isLoading && typeof msg.text === 'string' && msg.text.trim().length > 0
     );
+
+    // Consolidate consecutive messages of the same sender to ensure strictly alternating roles
+    const consolidatedTurns: { sender: 'user' | 'ai', text: string }[] = [];
+    for (const msg of validMessagesForHistory) {
+      const sender = msg.sender === 'user' ? 'user' : 'ai';
+      const last = consolidatedTurns[consolidatedTurns.length - 1];
+      if (last && last.sender === sender) {
+        last.text += '\n\n' + msg.text.trim();
+      } else {
+        consolidatedTurns.push({ sender, text: msg.text.trim() });
+      }
+    }
   
     if (provider === AIProvider.GOOGLE_GEMINI) {
-      const geminiHistory: Content[] = validMessagesForHistory.map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.text }],
+      const turns = [...consolidatedTurns];
+      // Gemini multiturn must start with a user message
+      if (turns.length > 0 && turns[0].sender === 'ai') {
+        turns.unshift({ sender: 'user', text: 'Context from previous analysis:' });
+      }
+      const geminiHistory: Content[] = turns.map(turn => ({
+          role: turn.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: turn.text }],
       }));
       return { gemini: geminiHistory };
-    } else { // OpenAI, OpenRouter or Mistral
-      const openaiHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = validMessagesForHistory.map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.text,
+    } else { // OpenAI, OpenRouter, Mistral, Anthropic
+      const openaiHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = consolidatedTurns.map(turn => ({
+          role: turn.sender === 'user' ? 'user' : 'assistant',
+          content: turn.text,
       }));
       return { openai: [{ role: 'system', content: systemPrompt }, ...openaiHistory] };
     }

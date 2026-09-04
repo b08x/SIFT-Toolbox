@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { SIFT_ICON } from '../constants.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
+import { RecentSessionItem } from '../types.ts';
 import { 
   Plus, 
   Settings2, 
@@ -16,7 +17,8 @@ import {
   Share, 
   ChevronLeft, 
   ChevronRight,
-  BookOpen
+  BookOpen,
+  History
 } from 'lucide-react';
 
 interface LeftSidebarProps {
@@ -29,10 +31,15 @@ interface LeftSidebarProps {
     onOpenSettings: () => void;
     onOpenExport: () => void;
     currentView: 'config' | 'chat' | 'about';
+    onOpenRecentSessions?: () => void;
+    recentSessions?: RecentSessionItem[];
+    currentSessionId?: string;
+    onSelectSession?: (sessionId: string) => void;
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
-    isOpen, onToggle, onNewSession, onOpenConfig, onOpenAbout, onOpenLearnSift, onOpenSettings, onOpenExport, currentView
+    isOpen, onToggle, onNewSession, onOpenConfig, onOpenAbout, onOpenLearnSift, onOpenSettings, onOpenExport, currentView,
+    onOpenRecentSessions, recentSessions = [], currentSessionId, onSelectSession
 }) => {
     const { user, signInWithGoogle, signOut, isConfigured } = useAuth();
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
@@ -135,6 +142,58 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     collapsed={!isOpen} 
                     active={false} 
                 />
+                {onOpenRecentSessions && (
+                    <SidebarItem 
+                        icon={<History size={20} />} 
+                        label={`Recent Sessions${recentSessions.length > 0 ? ` (${recentSessions.length})` : ''}`} 
+                        onClick={onOpenRecentSessions} 
+                        collapsed={!isOpen} 
+                        active={false} 
+                    />
+                )}
+
+                {/* Expanded Recent Sessions Quick List */}
+                {isOpen && recentSessions.length > 0 && onSelectSession && (
+                    <div className="pt-3 mt-3 border-t border-border/50 px-1">
+                        <div className="flex items-center justify-between px-2 mb-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-light/70">
+                                Recent
+                            </span>
+                            {onOpenRecentSessions && (
+                                <button 
+                                    onClick={onOpenRecentSessions}
+                                    className="text-[10px] text-primary hover:underline font-semibold"
+                                >
+                                    All ({recentSessions.length})
+                                </button>
+                            )}
+                        </div>
+                        <div className="space-y-0.5 overflow-hidden">
+                            {recentSessions.slice(0, 4).map(session => {
+                                const isActive = session.id === currentSessionId;
+                                return (
+                                    <button
+                                        key={session.id}
+                                        onClick={() => onSelectSession(session.id)}
+                                        title={session.title}
+                                        className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors flex items-center justify-between group ${
+                                            isActive
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                : 'text-text-light hover:text-text hover:bg-border/40'
+                                        }`}
+                                    >
+                                        <span className="truncate flex-1 pr-1.5">{session.title}</span>
+                                        {session.messageCount > 0 && (
+                                            <span className="text-[9px] text-text-light/50 shrink-0">
+                                                {session.messageCount}m
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </nav>
 
             <div className="p-2 border-t border-border space-y-1">
