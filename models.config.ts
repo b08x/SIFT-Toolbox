@@ -126,20 +126,37 @@ const GEMINI_3_PARAMS: ModelParameter[] = [
 ];
 
 export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
-  // Google Gemini Models - Optimized for Gemini 3
+  // Google Gemini Models - Prioritized for stability, speed, and high quota limits
   {
-    id: 'gemini-3.1-pro-preview',
-    name: 'Google Deep Research',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash (Recommended)',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,
-    supportsUrlContext: true,
     supportsThinking: true,
-    parameters: getParametersForModel('gemini-3.1-pro-preview', AIProvider.GOOGLE_GEMINI),
+    parameters: getParametersForModel('gemini-2.5-flash', AIProvider.GOOGLE_GEMINI),
+  },
+  {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite (High Speed)',
+    provider: AIProvider.GOOGLE_GEMINI,
+    supportsGoogleSearch: true,
+    supportsVision: true,
+    supportsThinking: false,
+    parameters: getParametersForModel('gemini-2.5-flash-lite', AIProvider.GOOGLE_GEMINI),
+  },
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    provider: AIProvider.GOOGLE_GEMINI,
+    supportsGoogleSearch: true,
+    supportsVision: true,
+    supportsThinking: true,
+    parameters: getParametersForModel('gemini-3.8-flash', AIProvider.GOOGLE_GEMINI),
   },
   {
     id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash',
+    name: 'Gemini 3 Flash Preview',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,
@@ -147,12 +164,14 @@ export const INITIAL_MODELS_CONFIG: AIModelConfig[] = [
     parameters: getParametersForModel('gemini-3-flash-preview', AIProvider.GOOGLE_GEMINI),
   },
   {
-    id: 'gemini-flash-lite-latest',
-    name: 'Gemini Flash Lite',
+    id: 'gemini-3.1-pro-preview',
+    name: 'Google Deep Research (Pro / Paid)',
     provider: AIProvider.GOOGLE_GEMINI,
     supportsGoogleSearch: true,
     supportsVision: true,
-    parameters: getParametersForModel('gemini-flash-lite-latest', AIProvider.GOOGLE_GEMINI),
+    supportsUrlContext: true,
+    supportsThinking: true,
+    parameters: getParametersForModel('gemini-3.1-pro-preview', AIProvider.GOOGLE_GEMINI),
   },
 
   // Mistral Models

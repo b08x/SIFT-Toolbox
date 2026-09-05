@@ -53,7 +53,9 @@ interface AppStateActions {
 
 type AppState = AppStateProperties & AppStateActions;
 
-const initialModel = INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI) || INITIAL_MODELS_CONFIG[0];
+const initialModel = INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI && m.id === 'gemini-2.5-flash') 
+  || INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI) 
+  || INITIAL_MODELS_CONFIG[0];
 const initialParams: ConfigurableParams = {};
 initialModel.parameters.forEach(p => initialParams[p.key] = p.defaultValue);
 
@@ -81,7 +83,14 @@ const initialState: AppStateProperties = {
 export const useAppStore = create<AppState>((set) => ({
   ...initialState,
 
-  setInitialState: (state) => set(state),
+  setInitialState: (state) => {
+    // If a restored state points to gemini-3.1-pro-preview which hits 429 quota limits, migrate to gemini-2.5-flash
+    const sanitized = { ...state };
+    if (sanitized.selectedModelId === 'gemini-3.1-pro-preview' || sanitized.selectedModelId === 'gemini-1.5-flash' || sanitized.selectedModelId === 'gemini-2.0-flash') {
+      sanitized.selectedModelId = 'gemini-2.5-flash';
+    }
+    set(sanitized);
+  },
   
   addChatMessage: (message) => set((state) => ({ chatMessages: [...state.chatMessages, message] })),
   

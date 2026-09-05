@@ -23,6 +23,25 @@ import {
 import { getSystemPromptForSelectedModel, getTruncatedHistoryForApi } from '../utils/apiHelpers.ts';
 import { constructFullPrompt } from "../prompts.ts";
 
+export const isRateLimitOrQuotaError = (err: any): boolean => {
+    if (!err) return false;
+    const msg = String(err.message || '').toLowerCase();
+    const status = err.status || err.code || err?.error?.code || err?.error?.status;
+    const errStr = typeof err === 'object' ? JSON.stringify(err).toLowerCase() : String(err).toLowerCase();
+    return (
+        status === 429 ||
+        status === 'RESOURCE_EXHAUSTED' ||
+        msg.includes('429') ||
+        msg.includes('resource_exhausted') ||
+        msg.includes('quota') ||
+        msg.includes('rate limit') ||
+        msg.includes('rate-limit') ||
+        errStr.includes('429') ||
+        errStr.includes('resource_exhausted') ||
+        errStr.includes('quota')
+    );
+};
+
 export class AgenticApiService {
     private geminiAi: GoogleGenAI | null = null;
     private provider: AIProvider;
@@ -42,7 +61,7 @@ export class AgenticApiService {
     }
 
     private initializeClients() {
-        const geminiKey = this.userApiKeys[AIProvider.GOOGLE_GEMINI] || process.env.API_KEY;
+        const geminiKey = this.userApiKeys[AIProvider.GOOGLE_GEMINI] || process.env.API_KEY || (process.env as any).GEMINI_API_KEY;
         
         if (geminiKey) {
             this.geminiAi = new GoogleGenAI({ apiKey: geminiKey });
@@ -55,9 +74,9 @@ export class AgenticApiService {
         try {
             if (provider === AIProvider.GOOGLE_GEMINI) {
                 const ai = new GoogleGenAI({ apiKey: key });
-                // Use simplified content structure for quick validation
+                // Use gemini-2.5-flash for reliable validation without 429 quota exhaustion
                 await ai.models.generateContent({ 
-                    model: 'gemini-3-flash-preview', 
+                    model: 'gemini-2.5-flash', 
                     contents: 'Ping' 
                 });
             } else {
@@ -133,17 +152,29 @@ export class AgenticApiService {
 
                 const uniqueModelsMap = new Map<string, AIModelConfig>();
 
+                // Exclude deprecated or non-text generation models
+                const deprecatedPrefixes = ['gemini-1.5', 'gemini-1.0', 'gemini-2.0', 'text-bison', 'chat-bison', 'embedding', 'aqa'];
+                const nonTextSubstrings = ['embedding', 'tts', 'transcribe', 'image-preview', 'robotics', 'computer-use'];
+
                 data.models
-                    .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
+                    .filter((m: any) => {
+                        if (!m.supportedGenerationMethods?.includes('generateContent')) return false;
+                        const id = (m.name.split('/').pop() || '').toLowerCase();
+                        if (deprecatedPrefixes.some(p => id.startsWith(p))) return false;
+                        if (nonTextSubstrings.some(s => id.includes(s))) return false;
+                        return true;
+                    })
                     .forEach((model: any) => {
                         const id = model.name.split('/').pop();
                         if (uniqueModelsMap.has(id)) return;
 
-                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5') || id.includes('gemini-2.0');
+                        const isGemini3 = id.includes('gemini-3') || id.includes('gemini-2.5');
                         const isThinkingSupported = isGemini3 || id.includes('thinking');
                         
                         let displayName = model.displayName || id;
-                        if (id === 'gemini-3.1-pro-preview') displayName = 'Google Deep Research';
+                        if (id === 'gemini-2.5-flash') displayName = 'Gemini 2.5 Flash (Recommended)';
+                        else if (id === 'gemini-2.5-flash-lite') displayName = 'Gemini 2.5 Flash Lite (High Speed)';
+                        else if (id === 'gemini-3.1-pro-preview') displayName = 'Google Deep Research (Pro / Paid)';
 
                         uniqueModelsMap.set(id, {
                             id: id,
@@ -156,7 +187,25 @@ export class AgenticApiService {
                         });
                     });
 
-                return Array.from(uniqueModelsMap.values()).sort((a, b) => b.id.localeCompare(a.id));
+                // Prioritize stable, high-quota models at top
+                const getModelRank = (id: string): number => {
+                    if (id === 'gemini-2.5-flash') return 1;
+                    if (id === 'gemini-2.5-flash-lite') return 2;
+                    if (id === 'gemini-3.8-flash') return 3;
+                    if (id === 'gemini-3-flash-preview') return 4;
+                    if (id === 'gemini-3.1-flash-lite') return 5;
+                    if (id === 'gemini-3.1-pro-preview') return 6;
+                    if (id.includes('flash')) return 10;
+                    if (id.includes('pro')) return 20;
+                    return 30;
+                };
+
+                return Array.from(uniqueModelsMap.values()).sort((a, b) => {
+                    const rankA = getModelRank(a.id);
+                    const rankB = getModelRank(b.id);
+                    if (rankA !== rankB) return rankA - rankB;
+                    return a.id.localeCompare(b.id);
+                });
             } else {
                 const baseURLMap: Record<string, string> = {
                     [AIProvider.OPENAI]: 'https://api.openai.com/v1',
@@ -288,24 +337,6 @@ export class AgenticApiService {
                 }
                 currentParts.push({ text: userPrompt });
 
-                const config: any = {
-                    systemInstruction: systemPrompt,
-                    temperature: Number(effectiveParams.temperature),
-                    topP: Number(effectiveParams.topP),
-                    topK: Number(effectiveParams.topK),
-                };
-
-                if (this.modelConfig.supportsGoogleSearch) {
-                    config.tools = [{ googleSearch: {} }];
-                }
-
-                if (this.modelConfig.supportsThinking) {
-                   config.thinkingConfig = { thinkingBudget: Number(effectiveParams.thinkingBudget) || 0 };
-                   if (effectiveParams.maxOutputTokens) {
-                       config.maxOutputTokens = Number(effectiveParams.maxOutputTokens);
-                   }
-                }
-
                 let contents: Content[] = [];
                 if (history && history.length > 0) {
                     const cleanHistory = [...history];
@@ -322,50 +353,129 @@ export class AgenticApiService {
                     contents = [{ role: 'user', parts: currentParts }];
                 }
 
-                const responseStream = await this.geminiAi.models.generateContentStream({
-                    model: this.modelConfig.id,
-                    contents,
-                    config: config
-                });
+                // Determine candidate models in order of attempt for 429 quota resilience
+                const candidateModels: string[] = [];
+                const requestedModel = this.modelConfig.id;
+                candidateModels.push(requestedModel);
+                if (requestedModel !== 'gemini-2.5-flash') {
+                    candidateModels.push('gemini-2.5-flash');
+                }
+                if (requestedModel !== 'gemini-2.5-flash-lite') {
+                    candidateModels.push('gemini-2.5-flash-lite');
+                }
 
-                let fullText = '';
-                let groundingSources: GroundingChunk[] = [];
+                let streamSucceeded = false;
+                let lastError: any = null;
 
-                for await (const chunk of responseStream) {
-                    if (signal?.aborted) break;
-                    
-                    const text = chunk.text;
-                    if (text) {
-                        fullText += text;
-                        yield { type: 'chunk', text: text };
+                for (let attemptIdx = 0; attemptIdx < candidateModels.length; attemptIdx++) {
+                    const activeModelId = candidateModels[attemptIdx];
+                    const isFallback = attemptIdx > 0;
+
+                    if (isFallback) {
+                        yield {
+                            type: 'status',
+                            message: `Quota limit reached on ${candidateModels[attemptIdx - 1]}. Automatically continuing analysis with ${activeModelId}...`
+                        };
+                        await new Promise(r => setTimeout(r, 600));
                     }
 
-                    const candidate = chunk.candidates?.[0];
-                    if (candidate?.groundingMetadata?.groundingChunks) {
-                        const chunks = candidate.groundingMetadata.groundingChunks as any[];
-                        const newSources = chunks.map(c => ({
-                            web: c.web ? { uri: c.web.uri, title: c.web.title } : undefined
-                        })).filter(s => s.web);
-                        
-                        if (newSources.length > 0) {
-                            groundingSources = [...groundingSources, ...newSources];
-                            yield { type: 'sources', sources: groundingSources };
+                    const config: any = {
+                        systemInstruction: systemPrompt,
+                        temperature: Number(effectiveParams.temperature) || 0.7,
+                        topP: Number(effectiveParams.topP) || 0.95,
+                        topK: Number(effectiveParams.topK) || 40,
+                    };
+
+                    // Include Google Search grounding for supported models
+                    if (this.modelConfig.supportsGoogleSearch || activeModelId.includes('flash')) {
+                        config.tools = [{ googleSearch: {} }];
+                    }
+
+                    if (activeModelId.includes('gemini-3') || activeModelId.includes('gemini-2.5-flash')) {
+                        if (this.modelConfig.supportsThinking && Number(effectiveParams.thinkingBudget) > 0) {
+                            config.thinkingConfig = { thinkingBudget: Number(effectiveParams.thinkingBudget) };
                         }
+                        if (effectiveParams.maxOutputTokens) {
+                            config.maxOutputTokens = Number(effectiveParams.maxOutputTokens);
+                        }
+                    }
+
+                    try {
+                        const responseStream = await this.geminiAi.models.generateContentStream({
+                            model: activeModelId,
+                            contents,
+                            config: config
+                        });
+
+                        let fullText = '';
+                        let groundingSources: GroundingChunk[] = [];
+                        let streamEmitted = false;
+
+                        for await (const chunk of responseStream) {
+                            if (signal?.aborted) break;
+                            
+                            const text = chunk.text;
+                            if (text) {
+                                streamEmitted = true;
+                                fullText += text;
+                                yield { type: 'chunk', text: text };
+                            }
+
+                            const candidate = chunk.candidates?.[0];
+                            if (candidate?.groundingMetadata?.groundingChunks) {
+                                const chunks = candidate.groundingMetadata.groundingChunks as any[];
+                                const newSources = chunks.map(c => ({
+                                    web: c.web ? { uri: c.web.uri, title: c.web.title } : undefined
+                                })).filter(s => s.web);
+                                
+                                if (newSources.length > 0) {
+                                    groundingSources = [...groundingSources, ...newSources];
+                                    yield { type: 'sources', sources: groundingSources };
+                                }
+                            }
+                        }
+
+                        yield {
+                            type: 'final',
+                            fullText,
+                            modelId: activeModelId,
+                            groundingSources,
+                            isInitialSIFTReport: isInitialQuery,
+                            originalQueryReportType: reportType
+                        };
+
+                        streamSucceeded = true;
+                        break; // Success! Exit candidate model loop
+                    } catch (err: any) {
+                        lastError = err;
+                        console.warn(`[streamSiftAnalysis] Error on ${activeModelId}:`, err);
+
+                        const isQuota = isRateLimitOrQuotaError(err);
+                        // If quota error and we have another candidate model, retry with next model
+                        if (isQuota && attemptIdx < candidateModels.length - 1) {
+                            continue;
+                        }
+                        break;
                     }
                 }
 
-                yield {
-                    type: 'final',
-                    fullText,
-                    modelId: this.modelConfig.id,
-                    groundingSources,
-                    isInitialSIFTReport: isInitialQuery,
-                    originalQueryReportType: reportType
-                };
+                if (!streamSucceeded && lastError) {
+                    if (isRateLimitOrQuotaError(lastError)) {
+                        yield {
+                            type: 'error',
+                            error: `⚠️ **API Rate Limit / Quota Exceeded (429 RESOURCE_EXHAUSTED)**\n\nThe request exceeded the available quota on the Gemini API.\n\n**Quick solutions:**\n• **Wait 30–60 seconds**: Free tier rate limits automatically refresh every minute.\n• **Switch Model**: In **Settings**, select **Gemini 2.5 Flash** or **Gemini 2.5 Flash Lite** for the highest throughput.\n• **Use Personal API Key**: In **Settings → API Keys**, add your personal Gemini API key to avoid shared project quota limits.`
+                        };
+                    } else {
+                        yield {
+                            type: 'error',
+                            error: lastError.message || 'An error occurred during generation.'
+                        };
+                    }
+                }
 
             } else {
                 const providerApiKey = this.userApiKeys[this.provider];
-                const apiKey = providerApiKey || (this.provider === AIProvider.GOOGLE_GEMINI ? process.env.API_KEY : undefined);
+                const apiKey = providerApiKey || (this.provider === AIProvider.GOOGLE_GEMINI ? (process.env.API_KEY || (process.env as any).GEMINI_API_KEY) : undefined);
                 if (!apiKey) throw new Error(`API key missing for ${this.provider}`);
 
                 const model = getVercelModel(this.provider, apiKey, this.modelConfig.id);
@@ -428,7 +538,14 @@ export class AgenticApiService {
             }
         } catch (e: any) {
             console.error("[streamSiftAnalysis] Error details:", e);
-            yield { type: 'error', error: e.message || 'An error occurred during generation.' };
+            if (isRateLimitOrQuotaError(e)) {
+                yield {
+                    type: 'error',
+                    error: `⚠️ **API Rate Limit / Quota Exceeded (429 RESOURCE_EXHAUSTED)**\n\nThe request exceeded the available quota on the Gemini API.\n\n**Quick solutions:**\n• **Wait 30–60 seconds**: Free tier rate limits automatically refresh every minute.\n• **Switch Model**: In **Settings**, select **Gemini 2.5 Flash** or **Gemini 2.5 Flash Lite**.\n• **Use Personal API Key**: In **Settings → API Keys**, add your personal Gemini API key.`
+                };
+            } else {
+                yield { type: 'error', error: e.message || 'An error occurred during generation.' };
+            }
         }
     }
 
@@ -439,24 +556,39 @@ export class AgenticApiService {
             const systemPrompt = `You are a helpful assistant. Based on the provided fact-checking/contextualization report, suggest exactly three follow-up search queries that the user could run to deep-dive into the claims or topics mentioned. Return ONLY a JSON array of strings, with no markdown formatting or other text. Example: ["Query 1", "Query 2", "Query 3"]`;
             
             if (this.provider === AIProvider.GOOGLE_GEMINI && this.geminiAi) {
-                const response = await this.geminiAi.models.generateContent({
-                    model: this.modelConfig.id,
-                    contents: reportText,
-                    config: {
-                        systemInstruction: systemPrompt,
-                        temperature: 0.7,
+                // Try fast, generous-quota models for follow-up suggestions
+                const candidateModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+                if (this.modelConfig.id && !candidateModels.includes(this.modelConfig.id) && !this.modelConfig.id.includes('pro')) {
+                    candidateModels.unshift(this.modelConfig.id);
+                }
+
+                for (const modelId of candidateModels) {
+                    try {
+                        const response = await this.geminiAi.models.generateContent({
+                            model: modelId,
+                            contents: reportText.slice(0, 8000), // Keep concise to save tokens
+                            config: {
+                                systemInstruction: systemPrompt,
+                                temperature: 0.7,
+                            }
+                        });
+                        const cleanedText = (response.text || '').replace(/```json/g, '').replace(/```/g, '').trim();
+                        const queries = JSON.parse(cleanedText);
+                        if (Array.isArray(queries) && queries.length > 0) {
+                            return queries.slice(0, 3);
+                        }
+                    } catch (err: any) {
+                        if (isRateLimitOrQuotaError(err)) {
+                            continue;
+                        }
+                        console.warn(`[suggestFollowUpQueries] Model ${modelId} error:`, err?.message);
                     }
-                });
-                const cleanedText = (response.text || '').replace(/```json/g, '').replace(/```/g, '').trim();
-                const queries = JSON.parse(cleanedText);
-                if (Array.isArray(queries) && queries.length > 0) {
-                    return queries.slice(0, 3);
                 }
                 return [];
             }
 
             const providerApiKey = this.userApiKeys[this.provider];
-            const apiKey = providerApiKey || (this.provider === AIProvider.GOOGLE_GEMINI ? process.env.API_KEY : undefined);
+            const apiKey = providerApiKey || (this.provider === AIProvider.GOOGLE_GEMINI ? (process.env.API_KEY || (process.env as any).GEMINI_API_KEY) : undefined);
             if (!apiKey) return [];
 
             const model = getVercelModel(this.provider, apiKey, this.modelConfig.id);

@@ -71,15 +71,19 @@ export const App = (): React.ReactElement => {
   // Initial setup: auto-fetch Gemini models if API key exists
   useEffect(() => {
     const initGeminiModels = async () => {
-        const apiKey = process.env.API_KEY;
+        const apiKey = process.env.API_KEY || (process.env as any).GEMINI_API_KEY;
         if (apiKey) {
             try {
                 const models = await AgenticApiService.fetchAvailableModels(AIProvider.GOOGLE_GEMINI, apiKey);
                 if (models.length > 0) {
                     store.setAvailableModels(prev => {
                         const filtered = prev.filter(m => m.provider !== AIProvider.GOOGLE_GEMINI);
-                        return [...filtered, ...models];
+                        return [...models, ...filtered];
                     });
+                    // If the currently selected model is empty, deprecated, or gemini-3.1-pro-preview (which hits 429 quota exhaustion), default to the top recommended model
+                    if (!store.selectedModelId || store.selectedModelId === 'gemini-3.1-pro-preview' || store.selectedModelId.startsWith('gemini-1.') || store.selectedModelId.startsWith('gemini-2.0')) {
+                        store.setSelectedModelId(models[0].id);
+                    }
                 }
             } catch (e) {
                 console.warn("Auto-fetch Gemini models failed during initialization:", e);
@@ -175,7 +179,8 @@ export const App = (): React.ReactElement => {
                         text: event.fullText, 
                         isLoading: false, 
                         isInitialSIFTReport: event.isInitialSIFTReport,
-                        originalQueryReportType: event.originalQueryReportType
+                        originalQueryReportType: event.originalQueryReportType,
+                        modelId: event.modelId || store.selectedModelId
                     });
                     
                     if (event.isInitialSIFTReport) {
@@ -349,7 +354,8 @@ export const App = (): React.ReactElement => {
                         text: event.fullText, 
                         isLoading: false, 
                         isInitialSIFTReport: event.isInitialSIFTReport,
-                        originalQueryReportType: event.originalQueryReportType
+                        originalQueryReportType: event.originalQueryReportType,
+                        modelId: event.modelId || store.selectedModelId
                     });
                     
                     if (event.isInitialSIFTReport) {
