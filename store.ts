@@ -11,12 +11,19 @@ import {
     ApiKeyValidationStates,
     UploadedFile,
     AIModelConfig,
-    CustomCommand
+    CustomCommand,
+    McpSearchConfig,
+    TaskModelAssignments,
+    LLMTaskKey,
+    TaskModelSetting
 } from './types.ts';
-import { INITIAL_MODELS_CONFIG } from './models.config.ts';
+import { INITIAL_MODELS_CONFIG, DEFAULT_TASK_ASSIGNMENTS, isModelSIFTCompliant } from './models.config.ts';
+import { DEFAULT_MCP_CONFIG } from './services/mcpSearchService.ts';
 
 interface AppStateProperties extends SavedSessionState {
   availableModels: AIModelConfig[];
+  mcpSearchConfig: McpSearchConfig;
+  taskModelAssignments: TaskModelAssignments;
 }
 
 interface AppStateActions {
@@ -32,11 +39,17 @@ interface AppStateActions {
   setSelectedModelId: (modelId: string) => void;
   setModelConfigParams: (params: ConfigurableParams | ((prevState: ConfigurableParams) => ConfigurableParams)) => void;
   setEnableGeminiPreprocessing: (enabled: boolean) => void;
-  setUserApiKeys: (keys: { [key in AIProvider]?: string }) => void;
+  setUserApiKeys: (keys: { [key in AIProvider]?: string } | ((prev: { [key in AIProvider]?: string }) => { [key in AIProvider]?: string })) => void;
   setApiKeyValidation: (validation: ApiKeyValidationStates | ((prevState: ApiKeyValidationStates) => ApiKeyValidationStates)) => void;
   setCustomSystemPrompt: (prompt: string) => void;
   setAvailableModels: (models: AIModelConfig[] | ((prev: AIModelConfig[]) => AIModelConfig[])) => void;
+  setMcpSearchConfig: (config: McpSearchConfig | ((prev: McpSearchConfig) => McpSearchConfig)) => void;
   
+  setTaskModelAssignments: (assignments: TaskModelAssignments | ((prev: TaskModelAssignments) => TaskModelAssignments)) => void;
+  updateTaskAssignment: (taskKey: LLMTaskKey, updates: Partial<TaskModelSetting>) => void;
+  updateTaskParameters: (taskKey: LLMTaskKey, params: ConfigurableParams) => void;
+  applyModelToAllTasks: (provider: AIProvider, modelId: string) => void;
+
   setCustomCommands: (commands: CustomCommand[] | ((prev: CustomCommand[]) => CustomCommand[])) => void;
   addCustomCommand: (command: CustomCommand) => void;
   updateCustomCommand: (id: string, updates: Partial<CustomCommand>) => void;
@@ -53,9 +66,10 @@ interface AppStateActions {
 
 type AppState = AppStateProperties & AppStateActions;
 
-const initialModel = INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI && m.id === 'gemini-2.5-flash') 
-  || INITIAL_MODELS_CONFIG.find(m => m.provider === AIProvider.GOOGLE_GEMINI) 
-  || INITIAL_MODELS_CONFIG[0];
+const compliantInitialModels = INITIAL_MODELS_CONFIG;
+const initialModel = compliantInitialModels.find(m => m.provider === AIProvider.GOOGLE_GEMINI && m.id === 'gemini-2.5-flash') 
+  || compliantInitialModels.find(m => m.provider === AIProvider.GOOGLE_GEMINI) 
+  || compliantInitialModels[0];
 const initialParams: ConfigurableParams = {};
 initialModel.parameters.forEach(p => initialParams[p.key] = p.defaultValue);
 
@@ -77,17 +91,32 @@ const initialState: AppStateProperties = {
   sessionFiles: [],
   sessionUrls: '',
   sessionId: undefined,
-  availableModels: INITIAL_MODELS_CONFIG,
+  availableModels: compliantInitialModels,
+  mcpSearchConfig: DEFAULT_MCP_CONFIG,
+  taskModelAssignments: DEFAULT_TASK_ASSIGNMENTS,
 };
 
 export const useAppStore = create<AppState>((set) => ({
   ...initialState,
 
+  setMcpSearchConfig: (config) => {
+    if (typeof config === 'function') {
+      set(state => ({ mcpSearchConfig: config(state.mcpSearchConfig || DEFAULT_MCP_CONFIG) }));
+    } else {
+      set({ mcpSearchConfig: config });
+    }
+  },
+
   setInitialState: (state) => {
-    // If a restored state points to gemini-3.1-pro-preview which hits 429 quota limits, migrate to gemini-2.5-flash
     const sanitized = { ...state };
-    if (sanitized.selectedModelId === 'gemini-3.1-pro-preview' || sanitized.selectedModelId === 'gemini-1.5-flash' || sanitized.selectedModelId === 'gemini-2.0-flash') {
-      sanitized.selectedModelId = 'gemini-2.5-flash';
+    if (sanitized.userApiKeys) {
+      sanitized.userApiKeys = { ...sanitized.userApiKeys };
+      if (sanitized.userApiKeys[AIProvider.OPENAI]?.startsWith('sk-or-v1')) {
+        if (!sanitized.userApiKeys[AIProvider.OPENROUTER]) {
+          sanitized.userApiKeys[AIProvider.OPENROUTER] = sanitized.userApiKeys[AIProvider.OPENAI];
+        }
+        delete sanitized.userApiKeys[AIProvider.OPENAI];
+      }
     }
     set(sanitized);
   },
@@ -123,7 +152,13 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
   setEnableGeminiPreprocessing: (enabled) => set({ enableGeminiPreprocessing: enabled }),
-  setUserApiKeys: (keys) => set({ userApiKeys: keys }),
+  setUserApiKeys: (keys) => {
+    if (typeof keys === 'function') {
+      set(state => ({ userApiKeys: keys(state.userApiKeys) }));
+    } else {
+      set({ userApiKeys: keys });
+    }
+  },
   setApiKeyValidation: (validation) => {
     if (typeof validation === 'function') {
         set(state => ({ apiKeyValidation: validation(state.apiKeyValidation) }));
@@ -132,6 +167,58 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
   setCustomSystemPrompt: (prompt) => set({ customSystemPrompt: prompt }),
+
+  setTaskModelAssignments: (assignments) => {
+    if (typeof assignments === 'function') {
+      set(state => ({ taskModelAssignments: assignments(state.taskModelAssignments || DEFAULT_TASK_ASSIGNMENTS) }));
+    } else {
+      set({ taskModelAssignments: assignments });
+    }
+  },
+
+  updateTaskAssignment: (taskKey, updates) => set(state => {
+    const current = state.taskModelAssignments || DEFAULT_TASK_ASSIGNMENTS;
+    const taskCurrent = current[taskKey] || DEFAULT_TASK_ASSIGNMENTS[taskKey];
+    return {
+      taskModelAssignments: {
+        ...current,
+        [taskKey]: {
+          ...taskCurrent,
+          ...updates,
+        }
+      }
+    };
+  }),
+
+  updateTaskParameters: (taskKey, params) => set(state => {
+    const current = state.taskModelAssignments || DEFAULT_TASK_ASSIGNMENTS;
+    const taskCurrent = current[taskKey] || DEFAULT_TASK_ASSIGNMENTS[taskKey];
+    return {
+      taskModelAssignments: {
+        ...current,
+        [taskKey]: {
+          ...taskCurrent,
+          parameters: {
+            ...taskCurrent.parameters,
+            ...params,
+          }
+        }
+      }
+    };
+  }),
+
+  applyModelToAllTasks: (provider, modelId) => set(state => {
+    const current = state.taskModelAssignments || DEFAULT_TASK_ASSIGNMENTS;
+    const updated = { ...current };
+    (Object.keys(updated) as LLMTaskKey[]).forEach(k => {
+      updated[k] = {
+        ...updated[k],
+        provider,
+        modelId,
+      };
+    });
+    return { taskModelAssignments: updated };
+  }),
   
   setAvailableModels: (models) => {
     if (typeof models === 'function') {

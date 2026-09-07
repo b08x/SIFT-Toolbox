@@ -40,8 +40,32 @@ export const getVercelModel = (provider: AIProvider, apiKey: string, modelId: st
     }
 
     case AIProvider.ANTHROPIC: {
-        const anthropic = createAnthropic({ apiKey });
+        const anthropic = createAnthropic({ 
+            apiKey,
+            headers: {
+                'anthropic-dangerous-direct-browser-access': 'true'
+            }
+        });
         return anthropic(modelId);
+    }
+
+    case AIProvider.GROQ: {
+        const groq = createOpenAI({
+            apiKey,
+            baseURL: 'https://api.groq.com/openai/v1',
+        });
+        return groq(modelId);
+    }
+
+    case AIProvider.OLLAMA: {
+        // Ollama uses local URL; if apiKey looks like a URL use that, otherwise default to http://localhost:11434/v1
+        const rawUrl = (apiKey && apiKey.startsWith('http')) ? apiKey : 'http://localhost:11434/v1';
+        const baseURL = rawUrl.endsWith('/v1') ? rawUrl : `${rawUrl}/v1`;
+        const ollama = createOpenAI({
+            apiKey: 'ollama',
+            baseURL,
+        });
+        return ollama(modelId);
     }
 
     default:

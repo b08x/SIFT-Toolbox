@@ -27,8 +27,11 @@ import {
   SourceAssessment,
   CustomCommand,
   RecentSessionItem,
+  LLMTaskKey,
 } from './types.ts';
 import { parseSourceAssessmentsFromMarkdown, checkLinkStatus } from './utils/apiHelpers.ts';
+import { detectEnvironmentSecrets } from './services/mcpSearchService.ts';
+import { isModelSIFTCompliant } from './models.config.ts';
 import { marked } from 'marked';
 
 export const App = (): React.ReactElement => {
@@ -68,29 +71,81 @@ export const App = (): React.ReactElement => {
     }
   }, [user?.uid]);
 
-  // Initial setup: auto-fetch Gemini models if API key exists
+  // Initial setup: auto-detect environment keys, validate them, and pull latest models
   useEffect(() => {
-    const initGeminiModels = async () => {
-        const apiKey = process.env.API_KEY || (process.env as any).GEMINI_API_KEY;
-        if (apiKey) {
-            try {
-                const models = await AgenticApiService.fetchAvailableModels(AIProvider.GOOGLE_GEMINI, apiKey);
-                if (models.length > 0) {
-                    store.setAvailableModels(prev => {
-                        const filtered = prev.filter(m => m.provider !== AIProvider.GOOGLE_GEMINI);
-                        return [...models, ...filtered];
-                    });
-                    // If the currently selected model is empty, deprecated, or gemini-3.1-pro-preview (which hits 429 quota exhaustion), default to the top recommended model
-                    if (!store.selectedModelId || store.selectedModelId === 'gemini-3.1-pro-preview' || store.selectedModelId.startsWith('gemini-1.') || store.selectedModelId.startsWith('gemini-2.0')) {
-                        store.setSelectedModelId(models[0].id);
-                    }
-                }
-            } catch (e) {
-                console.warn("Auto-fetch Gemini models failed during initialization:", e);
-            }
+    const initEnvironmentKeysAndModels = async () => {
+      const secretsStatus = detectEnvironmentSecrets();
+
+      // Configure Exa MCP search if secret detected
+      if (secretsStatus.hasExaSecret && secretsStatus.exaApiKey) {
+        store.setMcpSearchConfig(prev => ({
+          ...prev,
+          apiKey: secretsStatus.exaApiKey || prev.apiKey,
+          enabled: true
+        }));
+      }
+
+      // Check all providers for environment keys
+      const detectedEntries = Object.entries(secretsStatus.providerKeys || {})
+        .filter(([_, key]) => Boolean(key && (key as string).trim().length > 0)) as [AIProvider, string][];
+
+      if (detectedEntries.length === 0) return;
+
+      // Update store with detected environment keys
+      store.setUserApiKeys(prev => {
+        const updated = { ...prev };
+        // Migrate any previously misassigned OpenRouter keys
+        if (updated[AIProvider.OPENAI]?.startsWith('sk-or-v1')) {
+          if (!updated[AIProvider.OPENROUTER]) {
+            updated[AIProvider.OPENROUTER] = updated[AIProvider.OPENAI];
+          }
+          delete updated[AIProvider.OPENAI];
         }
+        detectedEntries.forEach(([prov, key]) => {
+          if (!updated[prov] || updated[prov].trim().length === 0) {
+            updated[prov] = key;
+          }
+        });
+        return updated;
+      });
+
+      // Auto-validate and pull latest models for each detected provider
+      await Promise.all(
+        detectedEntries.map(async ([provider, key]) => {
+          try {
+            // 1. Validate the detected API key
+            const validationResult = await AgenticApiService.validateApiKey(provider, key);
+            store.setApiKeyValidation(prev => ({
+              ...prev,
+              [provider]: validationResult.isValid ? 'valid' : 'invalid'
+            }));
+
+            // 2. If valid, pull latest models from provider API
+            if (validationResult.isValid) {
+              const pulledModels = await AgenticApiService.fetchAvailableModels(provider, key);
+              const compliantModels = pulledModels || [];
+
+              if (compliantModels.length > 0) {
+                store.setAvailableModels(prev => {
+                  const filtered = prev.filter(m => m.provider !== provider);
+                  return [...filtered, ...compliantModels];
+                });
+
+                // If currently active model is unselected
+                if (!store.selectedModelId) {
+                  if (provider === store.selectedProviderKey || provider === AIProvider.GOOGLE_GEMINI) {
+                    store.setSelectedModelId(compliantModels[0].id);
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.warn(`[Auto-Init] Validation or model pull failed for ${provider}:`, err);
+          }
+        })
+      );
     };
-    initGeminiModels();
+    initEnvironmentKeysAndModels();
   }, []);
 
   useEffect(() => {
@@ -104,13 +159,28 @@ export const App = (): React.ReactElement => {
   ) => {
     if (isLoading) return;
 
+    // Resolve task-specific model routing and parameters
+    const taskKey: LLMTaskKey = isInitial ? 'fact_check' : 'interactive_chat';
+    const taskSetting = store.taskModelAssignments?.[taskKey];
+    const effectiveProvider = taskSetting?.provider || store.selectedProviderKey;
+    const effectiveModelId = taskSetting?.modelId || store.selectedModelId;
+    const effectiveParams = taskSetting?.parameters || store.modelConfigParams;
+
+    const queryInfo: OriginalQueryInfo = {
+        text: text,
+        files: isInitial ? store.sessionFiles : [],
+        urls: isInitial ? store.sessionUrls.split('\n').filter(u => u.trim()) : [],
+        reportType: ReportType.FULL_CHECK
+    };
+
     const userMsgId = uuidv4();
     const userMsg: ChatMessage = {
         id: userMsgId,
         sender: 'user',
         text: text,
         timestamp: new Date(),
-        uploadedFiles: isInitial ? store.sessionFiles : []
+        uploadedFiles: isInitial ? store.sessionFiles : [],
+        originalQuery: isInitial ? queryInfo : undefined
     };
     
     store.addChatMessage(userMsg);
@@ -124,36 +194,35 @@ export const App = (): React.ReactElement => {
         text: '',
         timestamp: new Date(),
         isLoading: true,
-        modelId: store.selectedModelId
+        modelId: effectiveModelId
     };
     store.addChatMessage(aiMsg);
 
     abortControllerRef.current = new AbortController();
 
     const api = new AgenticApiService(
-        store.selectedProviderKey,
-        store.selectedModelId,
+        effectiveProvider,
+        effectiveModelId,
         store.userApiKeys,
         store.enableGeminiPreprocessing,
-        store.availableModels
+        store.availableModels,
+        store.mcpSearchConfig
     );
-
-    const queryInfo: OriginalQueryInfo = {
-        text: text,
-        files: isInitial ? store.sessionFiles : [],
-        urls: isInitial ? store.sessionUrls.split('\n').filter(u => u.trim()) : [],
-        reportType: ReportType.FULL_CHECK
-    };
 
     try {
         const stream = api.streamSiftAnalysis({
             isInitialQuery: isInitial,
             query: isInitial ? queryInfo : text,
             fullChatHistory: store.chatMessages,
-            modelConfigParams: store.modelConfigParams,
+            modelConfigParams: effectiveParams,
             signal: abortControllerRef.current.signal,
             customSystemPrompt: store.customSystemPrompt,
-            command: command
+            command: command,
+            mcpSearchConfig: store.mcpSearchConfig,
+            sessionTopic: store.sessionTopic,
+            sessionContext: store.sessionContext,
+            sourceAssessments: store.sourceAssessments,
+            sessionUrls: store.sessionUrls
         });
 
         let fullText = '';
@@ -231,12 +300,18 @@ export const App = (): React.ReactElement => {
     if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
     
     if (store.chatMessages.length === 0) {
+        store.setCurrentSiftQueryDetails({
+            sessionTopic: store.sessionTopic,
+            sessionContext: store.sessionContext,
+            sessionFiles: store.sessionFiles,
+            sessionUrls: store.sessionUrls.split('\n').filter(u => u.trim())
+        });
         const initialText = hasTopic 
             ? store.sessionTopic 
             : "Please analyze the attached files using the SIFT methodology and provide a full report.";
         handleSendMessage(initialText, undefined, true);
     }
-  }, [store.sessionTopic, store.sessionFiles, store.chatMessages.length, handleSendMessage]);
+  }, [store.sessionTopic, store.sessionFiles, store.sessionContext, store.sessionUrls, store.chatMessages.length, store.setCurrentSiftQueryDetails, handleSendMessage]);
 
   const handleSaveSession = useCallback(async () => {
     setSaveStatus('saving');
@@ -294,12 +369,19 @@ export const App = (): React.ReactElement => {
     setIsLoading(true);
     setLlmStatusMessage("Preparing analysis...");
 
+    // Resolve task-specific model routing and parameters
+    const taskKey: LLMTaskKey = isInitial ? 'fact_check' : 'interactive_chat';
+    const taskSetting = store.taskModelAssignments?.[taskKey];
+    const taskProvider = taskSetting?.provider || store.selectedProviderKey;
+    const taskModelId = taskSetting?.modelId || store.selectedModelId;
+    const taskParams = taskSetting?.parameters || store.modelConfigParams;
+
     // Reset the AI message
     store.updateChatMessage(messageId, { 
         text: '', 
         isLoading: true, 
         isError: false,
-        modelId: store.selectedModelId,
+        modelId: taskModelId,
         groundingSources: undefined,
         followUpQueries: undefined
     });
@@ -307,11 +389,12 @@ export const App = (): React.ReactElement => {
     abortControllerRef.current = new AbortController();
 
     const api = new AgenticApiService(
-        store.selectedProviderKey,
-        store.selectedModelId,
+        taskProvider,
+        taskModelId,
         store.userApiKeys,
         store.enableGeminiPreprocessing,
-        store.availableModels
+        store.availableModels,
+        store.mcpSearchConfig
     );
 
     const queryInfo: OriginalQueryInfo = {
@@ -326,9 +409,14 @@ export const App = (): React.ReactElement => {
             isInitialQuery: isInitial,
             query: isInitial ? queryInfo : text,
             fullChatHistory: historyBefore,
-            modelConfigParams: store.modelConfigParams,
+            modelConfigParams: taskParams,
             signal: abortControllerRef.current.signal,
             customSystemPrompt: store.customSystemPrompt,
+            mcpSearchConfig: store.mcpSearchConfig,
+            sessionTopic: store.sessionTopic,
+            sessionContext: store.sessionContext,
+            sourceAssessments: store.sourceAssessments,
+            sessionUrls: store.sessionUrls
         });
 
         let fullText = '';
@@ -682,6 +770,13 @@ export const App = (): React.ReactElement => {
             addCustomCommand={store.addCustomCommand}
             updateCustomCommand={store.updateCustomCommand}
             deleteCustomCommand={store.deleteCustomCommand}
+            mcpSearchConfig={store.mcpSearchConfig}
+            onMcpSearchConfigChange={store.setMcpSearchConfig}
+            taskModelAssignments={store.taskModelAssignments}
+            onTaskModelAssignmentsChange={store.setTaskModelAssignments}
+            onUpdateTaskAssignment={store.updateTaskAssignment}
+            onUpdateTaskParameters={store.updateTaskParameters}
+            onApplyModelToAllTasks={store.applyModelToAllTasks}
           />
       )}
 

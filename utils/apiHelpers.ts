@@ -6,7 +6,99 @@ import { SIFT_CHAT_SYSTEM_PROMPT } from '../prompts.ts';
 
 const MAX_RECENT_TURNS = 5; // Number of recent user/AI message PAIRS to keep for context
 
-export const getSystemPromptForSelectedModel = (modelConfig: AIModelConfig | undefined, customPrompt?: string): string => {
+export interface SessionContextOptions {
+    sessionTopic?: string;
+    sessionContext?: string;
+    sourceAssessments?: SourceAssessment[];
+    sessionUrls?: string;
+}
+
+/**
+ * Creates an authoritative, compact executive distillation of a SIFT report.
+ * Retains essential verdicts, verified facts, corrections, and source ratings without
+ * bloating the context window with thousands of tokens of table markdown and boilerplate.
+ */
+export const compactSiftReportForContext = (rawReport: string): string => {
+    if (!rawReport || rawReport.length < 1200) {
+        return rawReport;
+    }
+
+    const sections: string[] = [];
+
+    // 1. Extract Fact-Checker Verdict
+    const verdictMatch = rawReport.match(/(?:###|##)?\s*(?:🏆|7\.)\s*What a Fact-Checker Might Say:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|💡|$))/i);
+    if (verdictMatch && verdictMatch[1].trim()) {
+        sections.push(`**Fact-Checker Verdict:**\n${verdictMatch[1].trim().slice(0, 500)}`);
+    }
+
+    // 2. Extract Revised Summary
+    const summaryMatch = rawReport.match(/(?:###|##)?\s*(?:📜|6\.|8\.)\s*Revised Summary[^:\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|🏆|$))/i);
+    if (summaryMatch && summaryMatch[1].trim()) {
+        sections.push(`**Corrected Summary:**\n${summaryMatch[1].trim().slice(0, 700)}`);
+    }
+
+    // 3. Extract Corrections Summary or Errors
+    const correctionsMatch = rawReport.match(/(?:###|##)?\s*(?:🛠️|3\.|5\.)\s*Corrections Summary:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|📌|$))/i);
+    if (correctionsMatch && correctionsMatch[1].trim()) {
+        sections.push(`**Key Corrections:**\n${correctionsMatch[1].trim().slice(0, 500)}`);
+    }
+
+    // 4. Extract Verified Facts (bullet points or top rows)
+    const verifiedMatch = rawReport.match(/(?:###|##)?\s*(?:✅|1\.|2\.)\s*Verified Facts[^:\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|⚠️|$))/i);
+    if (verifiedMatch && verifiedMatch[1].trim()) {
+        const rows = verifiedMatch[1].trim().split('\n').filter(r => r.includes('|') && !r.includes('---'));
+        const summaryRows = rows.slice(1, 6).map(r => {
+            const parts = r.split('|').map(p => p.trim()).filter(Boolean);
+            return parts.length >= 2 ? `• ${parts[0]}: ${parts[1]}` : null;
+        }).filter(Boolean);
+        if (summaryRows.length > 0) {
+            sections.push(`**Verified Facts:**\n${summaryRows.join('\n')}`);
+        }
+    }
+
+    if (sections.length > 0) {
+        return `[Initial SIFT Analysis - Distilled Findings]\n${sections.join('\n\n')}`;
+    }
+
+    // Fallback: preserve first 1500 chars cleanly
+    return rawReport.slice(0, 1500) + '\n\n[...Report synthesized for session continuity]';
+};
+
+/**
+ * Builds a structured, compact session context anchor block.
+ */
+export const formatSessionContextAnchor = (options?: SessionContextOptions): string => {
+    if (!options) return '';
+    const parts: string[] = [];
+
+    if (options.sessionTopic && options.sessionTopic.trim()) {
+        parts.push(`Topic: "${options.sessionTopic.trim()}"`);
+    }
+    if (options.sessionContext && options.sessionContext.trim()) {
+        parts.push(`Background Context & Investigation Angle: "${options.sessionContext.trim()}"`);
+    }
+    if (options.sessionUrls && options.sessionUrls.trim()) {
+        const urls = options.sessionUrls.split('\n').map(u => u.trim()).filter(Boolean);
+        if (urls.length > 0) {
+            parts.push(`Referenced Target URLs:\n${urls.map(u => `• ${u}`).join('\n')}`);
+        }
+    }
+    if (options.sourceAssessments && options.sourceAssessments.length > 0) {
+        const sourcesList = options.sourceAssessments.slice(0, 8).map(s => 
+            `• [${s.index || '?'}] ${s.name || 'Source'} (${s.rating || 'N/A'}/5) - ${s.assessment || s.notes || s.url}`
+        ).join('\n');
+        parts.push(`Verified Session Sources (${options.sourceAssessments.length} logged):\n${sourcesList}`);
+    }
+
+    if (parts.length === 0) return '';
+    return `[ACTIVE SIFT SESSION CONTINUITY ANCHOR]\n${parts.join('\n\n')}`;
+};
+
+export const getSystemPromptForSelectedModel = (
+    modelConfig: AIModelConfig | undefined, 
+    customPrompt?: string,
+    sessionOptions?: SessionContextOptions
+): string => {
     if (customPrompt && customPrompt.trim()) {
         return customPrompt;
     }
@@ -20,31 +112,68 @@ export const getSystemPromptForSelectedModel = (modelConfig: AIModelConfig | und
             basePrompt = `You are a SIFT (Stop, Investigate, Find, Trace) methodology assistant. You help users fact-check claims, understand context, and analyze information. Follow instructions for specific report types when requested. Provide structured, well-cited responses. Ensure all tables are in Markdown format.`;
         }
     }
+
+    // Append session continuity instruction if a specific topic or context is active
+    if (sessionOptions?.sessionTopic?.trim()) {
+        basePrompt += `\n\n--- ACTIVE SESSION CONTINUITY ---\nYou are working on an active SIFT fact-checking investigation regarding: "${sessionOptions.sessionTopic.trim()}". Maintain strict continuity across all turns with the findings, sources, and verified facts established in this session.`;
+        if (sessionOptions.sessionContext?.trim()) {
+            basePrompt += `\nInvestigation Focus / Background: "${sessionOptions.sessionContext.trim()}".`;
+        }
+    }
+
     return basePrompt;
   };
 
 export const getTruncatedHistoryForApi = (
     fullChatMessages: ChatMessage[],
     systemPrompt: string, // For OpenAI/OpenRouter/Mistral
-    provider: AIProvider
+    provider: AIProvider,
+    contextOptions?: SessionContextOptions
   ): { openai?: OpenAI.Chat.Completions.ChatCompletionMessageParam[]; gemini?: Content[] } => {
     
     const recentMessagesToKeepCount = MAX_RECENT_TURNS * 2; // user + ai messages
   
-    let processedMessages: ChatMessage[] = [];
+    let processedMessages: { id: string; sender: 'user' | 'ai'; text: string }[] = [];
     const addedIds = new Set<string>();
+
+    // 1. Identify the first user query (regardless of whether originalQuery property was set)
+    const firstUserMsg = fullChatMessages.find(msg => msg.sender === 'user');
+    // 2. Identify the first AI report (or initial comprehensive report)
+    const firstAIReport = fullChatMessages.find(msg => msg.sender === 'ai' && (msg.isInitialSIFTReport || msg.text.length > 500));
   
-    // Find the first user query and the first AI report
-    const firstUserMessage = fullChatMessages.find(msg => msg.sender === 'user' && msg.originalQuery);
-    const firstAIReport = fullChatMessages.find(msg => msg.sender === 'ai' && msg.isInitialSIFTReport);
-  
-    // Always include the first query and report if they exist
-    if (firstUserMessage) {
-      processedMessages.push(firstUserMessage);
-      addedIds.add(firstUserMessage.id);
+    // Anchor block representing the ongoing session context (topic, notes, sources)
+    const sessionAnchor = formatSessionContextAnchor(contextOptions);
+
+    // Always anchor the session with the initial user query
+    if (firstUserMsg && firstUserMsg.text?.trim()) {
+      let initialUserText = firstUserMsg.originalQuery?.text || firstUserMsg.text.trim();
+      if (sessionAnchor) {
+        initialUserText = `${sessionAnchor}\n\n[Initial Query]: ${initialUserText}`;
+      }
+      processedMessages.push({
+        id: firstUserMsg.id,
+        sender: 'user',
+        text: initialUserText
+      });
+      addedIds.add(firstUserMsg.id);
+    } else if (sessionAnchor) {
+      // If no initial user query found yet, anchor session context
+      processedMessages.push({
+        id: 'session-anchor',
+        sender: 'user',
+        text: sessionAnchor
+      });
+      addedIds.add('session-anchor');
     }
-    if (firstAIReport && !addedIds.has(firstAIReport.id)) {
-      processedMessages.push(firstAIReport);
+
+    // Always include the initial SIFT analysis, intelligently compacted to prevent context bloat
+    if (firstAIReport && !addedIds.has(firstAIReport.id) && firstAIReport.text?.trim()) {
+      const compactedReport = compactSiftReportForContext(firstAIReport.text);
+      processedMessages.push({
+        id: firstAIReport.id,
+        sender: 'ai',
+        text: compactedReport
+      });
       addedIds.add(firstAIReport.id);
     }
     
@@ -52,28 +181,33 @@ export const getTruncatedHistoryForApi = (
     let lastEssentialMessageIndex = -1;
     if (firstAIReport) {
       lastEssentialMessageIndex = fullChatMessages.findIndex(m => m.id === firstAIReport.id);
-    } else if (firstUserMessage) {
-      lastEssentialMessageIndex = fullChatMessages.findIndex(m => m.id === firstUserMessage.id);
+    } else if (firstUserMsg) {
+      lastEssentialMessageIndex = fullChatMessages.findIndex(m => m.id === firstUserMsg.id);
     }
   
     const subsequentMessages = fullChatMessages.slice(lastEssentialMessageIndex + 1);
     const recentSubsequentMessages = subsequentMessages.slice(Math.max(0, subsequentMessages.length - recentMessagesToKeepCount));
     
     recentSubsequentMessages.forEach(msg => {
-      if (!addedIds.has(msg.id)) { 
-          processedMessages.push(msg);
+      if (!addedIds.has(msg.id) && !msg.isLoading && !msg.isError && typeof msg.text === 'string' && msg.text.trim().length > 0) { 
+          // Bound intermediate turns so they don't blow the context window
+          let text = msg.text.trim();
+          if (text.length > 2500) {
+            text = text.slice(0, 1200) + '\n\n[...intermediate analysis condensed for context...]\n\n' + text.slice(-1000);
+          }
+          processedMessages.push({
+            id: msg.id,
+            sender: msg.sender === 'user' ? 'user' : 'ai',
+            text
+          });
+          addedIds.add(msg.id);
       }
     });
-    
-    // Filter out any error, loading, or empty messages before final conversion
-    const validMessagesForHistory = processedMessages.filter(
-      msg => !msg.isError && !msg.isLoading && typeof msg.text === 'string' && msg.text.trim().length > 0
-    );
 
     // Consolidate consecutive messages of the same sender to ensure strictly alternating roles
     const consolidatedTurns: { sender: 'user' | 'ai', text: string }[] = [];
-    for (const msg of validMessagesForHistory) {
-      const sender = msg.sender === 'user' ? 'user' : 'ai';
+    for (const msg of processedMessages) {
+      const sender = msg.sender;
       const last = consolidatedTurns[consolidatedTurns.length - 1];
       if (last && last.sender === sender) {
         last.text += '\n\n' + msg.text.trim();
@@ -86,14 +220,14 @@ export const getTruncatedHistoryForApi = (
       const turns = [...consolidatedTurns];
       // Gemini multiturn must start with a user message
       if (turns.length > 0 && turns[0].sender === 'ai') {
-        turns.unshift({ sender: 'user', text: 'Context from previous analysis:' });
+        turns.unshift({ sender: 'user', text: 'Context from previous SIFT analysis:' });
       }
       const geminiHistory: Content[] = turns.map(turn => ({
           role: turn.sender === 'user' ? 'user' : 'model',
           parts: [{ text: turn.text }],
       }));
       return { gemini: geminiHistory };
-    } else { // OpenAI, OpenRouter, Mistral, Anthropic
+    } else { // OpenAI, OpenRouter, Mistral, Anthropic, Groq, Ollama
       const openaiHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = consolidatedTurns.map(turn => ({
           role: turn.sender === 'user' ? 'user' : 'assistant',
           content: turn.text,

@@ -9,6 +9,9 @@ export enum ReportType {
 export interface GroundingChunkWeb {
   uri: string;
   title: string;
+  snippet?: string;
+  publishedDate?: string;
+  relevanceScore?: number;
 }
 
 export interface GroundingChunk {
@@ -84,6 +87,44 @@ export enum AIProvider {
   OPENROUTER = 'OPENROUTER',
   MISTRAL = 'MISTRAL',
   ANTHROPIC = 'ANTHROPIC',
+  GROQ = 'GROQ',
+  OLLAMA = 'OLLAMA',
+}
+
+export interface McpRerankerConfig {
+  enabled: boolean;
+  algorithm: 'hybrid' | 'recency_weighted' | 'semantic_overlap';
+  recencyWeight: number; // 0.0 - 1.0 (e.g. 0.35)
+  semanticWeight: number; // 0.0 - 1.0 (e.g. 0.45)
+  authorityWeight: number; // 0.0 - 1.0 (e.g. 0.20)
+  minRelevanceScore: number; // 0.0 - 1.0 threshold (e.g. 0.25)
+  maxResults: number; // e.g. 5
+}
+
+export interface McpSearchConfig {
+  enabled: boolean;
+  provider: 'exa' | 'generic_mcp';
+  apiKey?: string; // Exa API Key
+  serverUrl?: string; // MCP server URL (e.g. http://localhost:8000/mcp)
+  searchType: 'auto' | 'neural' | 'keyword';
+  numResults: number;
+  useDateFilter: boolean;
+  reranking: McpRerankerConfig;
+}
+
+export interface GroundedSearchResult {
+  id: string;
+  title: string;
+  url: string;
+  publishedDate?: string;
+  author?: string;
+  snippet: string;
+  highlights?: string[];
+  relevanceScore: number;
+  recencyScore: number;
+  authorityScore: number;
+  compositeScore: number;
+  source: 'mcp_exa' | 'google_search' | 'mcp_generic';
 }
 
 export type ModelParameterType = 'slider' | 'number' | 'text' | 'select';
@@ -105,6 +146,14 @@ export interface ModelParameter {
   unit?: string;
 }
 
+export interface ModelCapabilities {
+  tools?: boolean;
+  structuredOutputs?: boolean;
+  vision?: boolean;
+  webSearch?: boolean;
+  thinking?: boolean;
+}
+
 export interface AIModelConfig {
   id: string; 
   name: string; 
@@ -114,8 +163,31 @@ export interface AIModelConfig {
   supportsVision?: boolean; // General flag for image input capability
   supportsUrlContext?: boolean; // Flag for URL context tool
   supportsThinking?: boolean; // Flag for models that use <think> tags
+  capabilities?: ModelCapabilities;
+  contextWindow?: string | number;
   defaultSystemPrompt?: string; 
 }
+
+export type LLMTaskKey = 
+  | 'fact_check' 
+  | 'claim_verification' 
+  | 'interactive_chat' 
+  | 'preprocessing' 
+  | 'live_voice'
+  | 'custom_command';
+
+export interface TaskModelSetting {
+  taskKey: LLMTaskKey;
+  label: string;
+  category: 'Core Analysis' | 'Interactive' | 'Infrastructure';
+  description: string;
+  icon: string;
+  provider: AIProvider;
+  modelId: string;
+  parameters: ConfigurableParams;
+}
+
+export type TaskModelAssignments = Record<LLMTaskKey, TaskModelSetting>;
 
 export type ConfigurableParams = {
   [key: string]: number | string | boolean;
@@ -182,6 +254,8 @@ export interface SavedSessionState {
   apiKeyValidation: ApiKeyValidationStates;
   customSystemPrompt: string;
   customCommands: CustomCommand[];
+  mcpSearchConfig?: McpSearchConfig;
+  taskModelAssignments?: TaskModelAssignments;
 }
 
 export interface RecentSessionItem {

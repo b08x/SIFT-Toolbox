@@ -22,6 +22,24 @@
       tailwind.config = {
         theme: {
           extend: {
+            colors: {
+              background: 'var(--background)',
+              'background-secondary': 'var(--background-secondary)',
+              surface: 'var(--surface)',
+              card: 'var(--surface)',
+              'card-secondary': 'var(--background-secondary)',
+              border: 'var(--border)',
+              'border-color': 'var(--border)',
+              ui: 'var(--border)',
+              text: 'var(--text)',
+              'text-light': 'var(--text-light)',
+              'text-muted': 'var(--muted)',
+              primary: 'var(--amber)',
+              'primary-dark': 'var(--amber-hi)',
+              'accent-blue': 'var(--amber)',
+              'accent-green': 'var(--badge-green)',
+              'accent-red': 'var(--badge-red)'
+            },
             fontFamily: {
               sans: ['"Space Mono"', 'monospace'],
               mono: ['"Space Mono"', 'monospace']
@@ -387,6 +405,8 @@
       /* New Utility Classes */
       .bg-main { background-color: var(--background); }
       .bg-content { background-color: var(--background-secondary); }
+      .bg-card { background-color: var(--surface); }
+      .bg-card-secondary { background-color: var(--background-secondary); }
       .bg-primary { background-color: var(--primary); }
       .bg-border { background-color: var(--border); }
       .bg-status-error { background-color: var(--status-error); }
@@ -394,6 +414,8 @@
       .hover\:bg-border-hover:hover { background-color: var(--text-light); }
       .text-main { color: var(--text); }
       .text-light { color: var(--text-light); }
+      .text-text-muted { color: var(--muted); }
+      .text-text-light { color: var(--text-color); }
       .text-on-primary { color: var(--primary-text); }
       .text-primary-accent { color: var(--primary); }
       .text-status-success { color: var(--status-success); }
@@ -401,6 +423,7 @@
       .text-status-error { color: var(--status-error); }
       .border-ui { border-color: var(--border); }
       .border-primary { border-color: var(--primary); }
+      .border-border-color { border-color: var(--border); }
       .border-status-error { border-color: var(--status-error); }
       .accent-primary { accent-color: var(--primary); }
       .focus\:border-primary:focus { border-color: var(--primary); }

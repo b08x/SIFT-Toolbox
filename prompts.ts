@@ -812,10 +812,21 @@ Remember to maintain strict adherence to this format, including all section head
 When initially started, if the user has entered a claim or photo, take that as your object for analysis and start. Otherwise, run a welcome message explaining your function and asking for a claim to explore.
 `;
 
-export const constructFullPrompt = (text: string, type: ReportType): string => {
+export const constructFullPrompt = (text: string, type: ReportType, mcpGroundingContext?: string): string => {
     const currentDate = new Date().toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric'
     });
+    const currentYear = new Date().getFullYear();
+    const temporalNotice = `
+--- REAL-TIME TEMPORAL GROUNDING & CURRENT ERA CONTEXT ---
+Today's Date: ${currentDate}. Current Year: ${currentYear}.
+CRITICAL INSTRUCTION FOR ACCURACY:
+1. You are operating in ${currentYear}. Events, elections, and government policies up through ${currentDate} have taken place.
+2. In particular: Donald J. Trump was elected in 2024 and inaugurated on January 20, 2025 as the 47th President of the United States. On his first days in office in January 2025, he signed major executive orders, including orders dismantling previous Biden-era AI regulations (Executive Order 14110) and declaring an American AI leadership and deregulation strategy.
+3. NEVER mark a claim as "❌ Incorrect" solely based on an outdated pre-training cutoff.
+4. Verify all recent claims using active search grounding (Google Search and/or MCP Search results provided below).
+`;
+
     let promptText = ''; 
     switch (type) {
       case ReportType.FULL_CHECK:
@@ -830,5 +841,9 @@ export const constructFullPrompt = (text: string, type: ReportType): string => {
       default:
         promptText = SIFT_FULL_CHECK_PROMPT;
     }
-    return `${promptText.replace(/\\?\[current date(?: placeholder, will be provided in task)?\\]/gi, currentDate)}\n\nUser's initial query: "${text}"`;
+
+    const basePrompt = promptText.replace(/\\?\[current date(?: placeholder, will be provided in task)?\\]/gi, currentDate);
+    const mcpBlock = mcpGroundingContext ? `\n\n${mcpGroundingContext}` : '';
+    
+    return `${temporalNotice}\n\n${basePrompt}${mcpBlock}\n\nUser's initial query: "${text}"`;
   };
