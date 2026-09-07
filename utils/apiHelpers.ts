@@ -4,7 +4,7 @@ import { Content } from '@google/genai';
 import { AIProvider, AIModelConfig, ChatMessage, SourceAssessment, ParsedReportSection, GroundingChunk, LinkValidationStatus } from '../types.ts';
 import { SIFT_CHAT_SYSTEM_PROMPT } from '../prompts.ts';
 
-const MAX_RECENT_TURNS = 5; // Number of recent user/AI message PAIRS to keep for context
+const MAX_RECENT_TURNS = 8; // Number of recent user/AI message PAIRS to keep for context
 
 export interface SessionContextOptions {
     sessionTopic?: string;
@@ -15,36 +15,47 @@ export interface SessionContextOptions {
 
 /**
  * Creates an authoritative, compact executive distillation of a SIFT report.
- * Retains essential verdicts, verified facts, corrections, and source ratings without
- * bloating the context window with thousands of tokens of table markdown and boilerplate.
+ * Strips internal monologue/thinking tags and retains essential verdicts, verified facts,
+ * corrections, and source ratings without bloating the context window with thousands of tokens of markdown tables.
  */
 export const compactSiftReportForContext = (rawReport: string): string => {
-    if (!rawReport || rawReport.length < 1200) {
-        return rawReport;
+    if (!rawReport) return '';
+
+    // 1. Strip internal reasoning/thinking monologue (<think>...</think>)
+    const cleanReport = rawReport.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    if (!cleanReport) return rawReport.slice(0, 1000);
+    if (cleanReport.length < 1200) {
+        return cleanReport;
     }
 
     const sections: string[] = [];
 
-    // 1. Extract Fact-Checker Verdict
-    const verdictMatch = rawReport.match(/(?:###|##)?\s*(?:🏆|7\.)\s*What a Fact-Checker Might Say:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|💡|$))/i);
+    // 2. Extract Overarching Claim (Moderate & Strong)
+    const claimMatch = cleanReport.match(/(?:###|##|\*\*|\d\.)?\s*Overarching Claim[^\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*|\d\.)|\n\n--|$)/i);
+    if (claimMatch && claimMatch[1].trim()) {
+        sections.push(`**Overarching Claim:**\n${claimMatch[1].trim().slice(0, 400)}`);
+    }
+
+    // 3. Extract Fact-Checker Verdict / What a Fact-Checker Might Say
+    const verdictMatch = cleanReport.match(/(?:###|##|\*\*|\d\.)?\s*(?:🏆)?\s*What a Fact-Checker Might Say[^\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*|\d\.)|\n\n--|$)/i);
     if (verdictMatch && verdictMatch[1].trim()) {
-        sections.push(`**Fact-Checker Verdict:**\n${verdictMatch[1].trim().slice(0, 500)}`);
+        sections.push(`**Fact-Checker Verdict:**\n${verdictMatch[1].trim().slice(0, 600)}`);
     }
 
-    // 2. Extract Revised Summary
-    const summaryMatch = rawReport.match(/(?:###|##)?\s*(?:📜|6\.|8\.)\s*Revised Summary[^:\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|🏆|$))/i);
+    // 4. Extract Revised Summary
+    const summaryMatch = cleanReport.match(/(?:###|##|\*\*|\d\.)?\s*(?:📜)?\s*Revised Summary[^\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*|\d\.)|\n\n--|$)/i);
     if (summaryMatch && summaryMatch[1].trim()) {
-        sections.push(`**Corrected Summary:**\n${summaryMatch[1].trim().slice(0, 700)}`);
+        sections.push(`**Corrected Summary:**\n${summaryMatch[1].trim().slice(0, 750)}`);
     }
 
-    // 3. Extract Corrections Summary or Errors
-    const correctionsMatch = rawReport.match(/(?:###|##)?\s*(?:🛠️|3\.|5\.)\s*Corrections Summary:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|📌|$))/i);
+    // 5. Extract Corrections Summary or Errors
+    const correctionsMatch = cleanReport.match(/(?:###|##|\*\*|\d\.)?\s*(?:🛠️)?\s*Corrections Summary[^\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*|\d\.)|\n\n--|$)/i);
     if (correctionsMatch && correctionsMatch[1].trim()) {
         sections.push(`**Key Corrections:**\n${correctionsMatch[1].trim().slice(0, 500)}`);
     }
 
-    // 4. Extract Verified Facts (bullet points or top rows)
-    const verifiedMatch = rawReport.match(/(?:###|##)?\s*(?:✅|1\.|2\.)\s*Verified Facts[^:\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*\*|⚠️|$))/i);
+    // 6. Extract Verified Facts (bullet points or top rows)
+    const verifiedMatch = cleanReport.match(/(?:###|##|\*\*|\d\.)?\s*(?:✅)?\s*Verified Facts[^\n]*:?\s*\n+([\s\S]*?)(?=\n+(?:###|##|\*\*|\d\.)|\n\n--|$)/i);
     if (verifiedMatch && verifiedMatch[1].trim()) {
         const rows = verifiedMatch[1].trim().split('\n').filter(r => r.includes('|') && !r.includes('---'));
         const summaryRows = rows.slice(1, 6).map(r => {
@@ -53,15 +64,19 @@ export const compactSiftReportForContext = (rawReport: string): string => {
         }).filter(Boolean);
         if (summaryRows.length > 0) {
             sections.push(`**Verified Facts:**\n${summaryRows.join('\n')}`);
+        } else {
+            sections.push(`**Verified Facts:**\n${verifiedMatch[1].trim().slice(0, 500)}`);
         }
     }
 
     if (sections.length > 0) {
-        return `[Initial SIFT Analysis - Distilled Findings]\n${sections.join('\n\n')}`;
+        return `[Initial SIFT Analysis - Distilled Findings & Verdict]\n${sections.join('\n\n')}`;
     }
 
-    // Fallback: preserve first 1500 chars cleanly
-    return rawReport.slice(0, 1500) + '\n\n[...Report synthesized for session continuity]';
+    // High-fidelity fallback preserving both beginning overview and concluding verdict
+    const head = cleanReport.slice(0, 1000).trim();
+    const tail = cleanReport.length > 1000 ? cleanReport.slice(-800).trim() : '';
+    return head + (tail ? `\n\n[...intermediate tables condensed for context continuity...]\n\n${tail}` : '');
 };
 
 /**
@@ -72,7 +87,7 @@ export const formatSessionContextAnchor = (options?: SessionContextOptions): str
     const parts: string[] = [];
 
     if (options.sessionTopic && options.sessionTopic.trim()) {
-        parts.push(`Topic: "${options.sessionTopic.trim()}"`);
+        parts.push(`Investigation Topic: "${options.sessionTopic.trim()}"`);
     }
     if (options.sessionContext && options.sessionContext.trim()) {
         parts.push(`Background Context & Investigation Angle: "${options.sessionContext.trim()}"`);
@@ -80,11 +95,11 @@ export const formatSessionContextAnchor = (options?: SessionContextOptions): str
     if (options.sessionUrls && options.sessionUrls.trim()) {
         const urls = options.sessionUrls.split('\n').map(u => u.trim()).filter(Boolean);
         if (urls.length > 0) {
-            parts.push(`Referenced Target URLs:\n${urls.map(u => `• ${u}`).join('\n')}`);
+            parts.push(`Referenced Target URLs:\n${urls.slice(0, 5).map(u => `• ${u}`).join('\n')}`);
         }
     }
     if (options.sourceAssessments && options.sourceAssessments.length > 0) {
-        const sourcesList = options.sourceAssessments.slice(0, 8).map(s => 
+        const sourcesList = options.sourceAssessments.slice(0, 10).map(s => 
             `• [${s.index || '?'}] ${s.name || 'Source'} (${s.rating || 'N/A'}/5) - ${s.assessment || s.notes || s.url}`
         ).join('\n');
         parts.push(`Verified Session Sources (${options.sourceAssessments.length} logged):\n${sourcesList}`);
@@ -190,17 +205,19 @@ export const getTruncatedHistoryForApi = (
     
     recentSubsequentMessages.forEach(msg => {
       if (!addedIds.has(msg.id) && !msg.isLoading && !msg.isError && typeof msg.text === 'string' && msg.text.trim().length > 0) { 
-          // Bound intermediate turns so they don't blow the context window
-          let text = msg.text.trim();
-          if (text.length > 2500) {
-            text = text.slice(0, 1200) + '\n\n[...intermediate analysis condensed for context...]\n\n' + text.slice(-1000);
+          // Bound intermediate turns so they don't blow the context window, stripping think tags
+          let text = msg.text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+          if (text.length > 2200) {
+            text = text.slice(0, 1100) + '\n\n[...intermediate response condensed for context...]\n\n' + text.slice(-900);
           }
-          processedMessages.push({
-            id: msg.id,
-            sender: msg.sender === 'user' ? 'user' : 'ai',
-            text
-          });
-          addedIds.add(msg.id);
+          if (text.trim()) {
+            processedMessages.push({
+              id: msg.id,
+              sender: msg.sender === 'user' ? 'user' : 'ai',
+              text
+            });
+            addedIds.add(msg.id);
+          }
       }
     });
 

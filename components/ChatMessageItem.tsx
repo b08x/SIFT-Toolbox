@@ -2,11 +2,13 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { marked } from 'marked';
-import { ChatMessage, GroundingChunk, ReportType, ParsedReportSection, UploadedFile, SourceAssessment } from '../types.ts';
+import { RotateCcw, Sparkles, SlidersHorizontal, AlertCircle } from 'lucide-react';
+import { ChatMessage, GroundingChunk, ReportType, ParsedReportSection, UploadedFile, SourceAssessment, LLMTaskKey } from '../types.ts';
 import { SIFT_ICON } from '../constants.ts'; 
 import { downloadMarkdown } from '../utils/download.ts';
 import { parseSiftFullCheckReport, transformMarkdownForSubstack } from '../utils/apiHelpers.ts';
 import { CollapsibleReport } from './CollapsibleReport.tsx';
+import { useAppStore } from '../store.ts';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -14,6 +16,7 @@ interface ChatMessageItemProps {
   onSourceIndexClick: (index: number) => void;
   onFollowUpClick?: (query: string) => void;
   onRetryClick?: () => void;
+  onOpenSettings?: () => void;
 }
 
 const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
@@ -40,11 +43,59 @@ const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
     );
 };
 
-export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourceAssessments, onSourceIndexClick, onFollowUpClick, onRetryClick }) => {
+export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ 
+  message, 
+  sourceAssessments, 
+  onSourceIndexClick, 
+  onFollowUpClick, 
+  onRetryClick,
+  onOpenSettings 
+}) => {
   const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData, followUpQueries } = message;
   const isUser = sender === 'user';
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const copyMenuRef = useRef<HTMLDivElement>(null);
+
+  const store = useAppStore();
+
+  const isInitial = Boolean(isInitialSIFTReport || message.id === store.chatMessages[1]?.id);
+  const taskKey: LLMTaskKey = isInitial ? 'fact_check' : 'interactive_chat';
+  const taskSetting = store.taskModelAssignments?.[taskKey];
+  const currentProvider = taskSetting?.provider || store.selectedProviderKey;
+  const currentModelId = taskSetting?.modelId || store.selectedModelId;
+  const currentParams = taskSetting?.parameters || store.modelConfigParams;
+
+  const currentModelObj = useMemo(() => {
+    return store.availableModels.find(m => m.id === currentModelId);
+  }, [store.availableModels, currentModelId]);
+  const friendlyCurrentModelName = currentModelObj?.name || currentModelId?.split('/').pop()?.split(':').shift() || currentModelId;
+
+  const originalModelId = message.appliedConfig?.modelId || modelId;
+  const originalModelObj = useMemo(() => {
+    return store.availableModels.find(m => m.id === originalModelId);
+  }, [store.availableModels, originalModelId]);
+  const friendlyOriginalModelName = originalModelObj?.name || originalModelId?.split('/').pop()?.split(':').shift() || originalModelId;
+
+  // Determine if active configuration changed since this message was generated
+  const configDiff = useMemo(() => {
+    if (isUser) return null;
+    const diffs: string[] = [];
+    if (originalModelId && currentModelId && originalModelId !== currentModelId) {
+      diffs.push(`Model: ${friendlyOriginalModelName} → ${friendlyCurrentModelName}`);
+    }
+    const origProvider = message.appliedConfig?.provider;
+    if (origProvider && currentProvider && origProvider !== currentProvider) {
+      diffs.push(`Provider: ${origProvider} → ${currentProvider}`);
+    }
+    if (message.appliedConfig?.temperature !== undefined && currentParams?.temperature !== undefined) {
+      const origTemp = Number(message.appliedConfig.temperature);
+      const curTemp = Number(currentParams.temperature);
+      if (Math.abs(origTemp - curTemp) > 0.01) {
+        diffs.push(`Temp: ${origTemp} → ${curTemp}`);
+      }
+    }
+    return diffs.length > 0 ? diffs : null;
+  }, [isUser, originalModelId, currentModelId, friendlyOriginalModelName, friendlyCurrentModelName, message.appliedConfig, currentProvider, currentParams]);
 
   const urlToIndexMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -96,8 +147,6 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, sourc
         try {
             // Using the Clipboard API to write HTML
             const blob = new Blob([htmlContent], { type: 'text/html' });
-            // The ClipboardItem interface is not available in all TypeScript lib versions.
-            // Using `any` to bypass potential type errors while maintaining functionality.
             const clipboardItem = new (window as any).ClipboardItem({ 'text/html': blob });
             await navigator.clipboard.write([clipboardItem]);
             alert('Message content copied for Substack (HTML)!');
@@ -199,28 +248,76 @@ ${groundingSourcesText}
   };
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6 px-4`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6 px-2 sm:px-4 group`}>
       <div
-        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl ${
+        className={`rounded-2xl transition-all ${
           isUser
-            ? 'bg-background-secondary border border-border px-4 py-3'
-            : 'w-full'
+            ? 'max-w-[85%] sm:max-w-[75%] bg-background-secondary border border-border px-4 py-3 shadow-xs'
+            : 'w-full max-w-full bg-background/60 dark:bg-background-secondary/40 border border-border/80 p-4 sm:p-5 shadow-xs'
         } ${
-          isError ? 'border-status-error bg-status-error/5 text-status-error' : ''
+          isError ? 'border-status-error/50 bg-status-error/5 text-status-error' : ''
         }`}
       >
         {!isUser && (
-          <div className="flex items-start mb-2 group-hover:opacity-100 transition-opacity">
-            <div className="w-8 h-8 rounded-full bg-background-secondary border border-border flex items-center justify-center mr-3 flex-shrink-0 text-sm">
+          <div className="flex items-start">
+            <div className="w-8 h-8 rounded-full bg-background-secondary border border-border flex items-center justify-center mr-3 flex-shrink-0 text-sm shadow-xs">
               {SIFT_ICON}
             </div>
-            <div className="flex-grow">
-              <div className="flex items-center mb-1">
-                <span className="font-semibold text-sm mr-2">
-                  Assistant
-                  {isFromCache && <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20" title="Loaded from local cache">CACHED</span>}
-                </span>
-                {modelId && <span className="text-[10px] text-text-light uppercase tracking-wider">{modelId.split('/').pop()?.split(':').shift()}</span>}
+            <div className="flex-grow min-w-0">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2 pb-2.5 border-b border-border/40">
+                <div className="flex items-center flex-wrap gap-2">
+                  <span className="font-semibold text-sm mr-1">
+                    Assistant
+                  </span>
+                  {isFromCache && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium" title="Loaded from local cache">
+                      CACHED
+                    </span>
+                  )}
+                  {friendlyOriginalModelName && (
+                    <span className="text-[10px] text-text-light px-2 py-0.5 rounded-md bg-background-secondary border border-border tracking-wider font-mono" title={`Generated with: ${originalModelId}`}>
+                      {friendlyOriginalModelName}
+                    </span>
+                  )}
+                  {configDiff && (
+                    <span 
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+                      title={`Configuration updated mid-chat:\n${configDiff.join('\n')}\nClick Retry to re-run with current settings.`}
+                    >
+                      <Sparkles size={11} className="text-amber-500 shrink-0" />
+                      <span>Config updated: {friendlyCurrentModelName}</span>
+                    </span>
+                  )}
+                </div>
+
+                {!isLoading && onRetryClick && (
+                  <div className="flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={onRetryClick}
+                      title={`Retry model output with current config (${friendlyCurrentModelName}${currentParams?.temperature !== undefined ? `, temp: ${currentParams.temperature}` : ''})`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition-all shadow-xs ${
+                        configDiff 
+                          ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30' 
+                          : 'bg-background-secondary border-border hover:bg-border/60 text-text hover:text-primary'
+                      }`}
+                      aria-label="Retry model output with current configuration"
+                    >
+                      <RotateCcw size={11} className={isLoading ? "animate-spin" : ""} />
+                      <span>Retry</span>
+                      {configDiff && <span className="text-[10px] font-bold">({friendlyCurrentModelName})</span>}
+                    </button>
+                    {onOpenSettings && (
+                      <button
+                        onClick={onOpenSettings}
+                        title="Adjust model or parameters mid-chat"
+                        className="p-1 rounded-lg border border-transparent hover:border-border text-text-light hover:text-text hover:bg-background-secondary transition-colors"
+                        aria-label="Adjust model settings"
+                      >
+                        <SlidersHorizontal size={12} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               
               {isLoading && (
@@ -251,9 +348,37 @@ ${groundingSourcesText}
         )}
 
         {isError && !isLoading && (
-            <p className="text-xs text-status-error mt-2 font-medium flex items-center">
-              <span className="mr-1">⚠️</span> Failed to generate response.
-            </p>
+          <div className="mt-3 p-3.5 rounded-xl border border-status-error/30 bg-status-error/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start text-xs text-status-error font-medium">
+              <AlertCircle size={16} className="mr-2 shrink-0 mt-0.5 text-status-error" />
+              <div>
+                <p className="font-semibold">Model generation was interrupted or failed.</p>
+                <p className="text-text-light text-[11px] mt-0.5">
+                  {configDiff ? `Ready to retry with updated configuration (${friendlyCurrentModelName}).` : `Retry using current settings (${friendlyCurrentModelName})?`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {onOpenSettings && (
+                <button
+                  onClick={onOpenSettings}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-border bg-background text-text hover:bg-border/60 transition-colors flex items-center"
+                >
+                  <SlidersHorizontal size={12} className="mr-1.5 text-text-light" />
+                  Settings
+                </button>
+              )}
+              {onRetryClick && (
+                <button
+                  onClick={onRetryClick}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-white hover:bg-primary/90 transition-all flex items-center shadow-xs"
+                >
+                  <RotateCcw size={12} className="mr-1.5" />
+                  Retry with {friendlyCurrentModelName}
+                </button>
+              )}
+            </div>
+          </div>
         )}
 
         {groundingSources && groundingSources.length > 0 && !isLoading && !isError && (
@@ -374,13 +499,17 @@ ${groundingSourcesText}
                     {!isUser && onRetryClick && (
                         <button
                             onClick={onRetryClick}
-                            title="Retry response"
-                            className="p-1 rounded text-light hover:bg-border ml-1"
-                            aria-label="Retry response"
+                            title={`Retry model output with current config (${friendlyCurrentModelName}${currentParams?.temperature !== undefined ? `, temp: ${currentParams.temperature}` : ''})`}
+                            className={`p-1.5 rounded-md ${
+                                configDiff 
+                                    ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium' 
+                                    : 'text-text-light hover:text-text hover:bg-border'
+                            } ml-1 inline-flex items-center gap-1.5 text-xs transition-colors`}
+                            aria-label="Retry model output"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                            </svg>
+                            <RotateCcw size={12} />
+                            <span className="hidden sm:inline">Retry</span>
+                            {configDiff && <span className="text-[10px] hidden md:inline font-bold">({friendlyCurrentModelName})</span>}
                         </button>
                     )}
                 </div>

@@ -166,6 +166,18 @@ export const App = (): React.ReactElement => {
     const effectiveModelId = taskSetting?.modelId || store.selectedModelId;
     const effectiveParams = taskSetting?.parameters || store.modelConfigParams;
 
+    // Ensure active topic is preserved for multi-turn session continuity
+    let activeTopic = store.sessionTopic?.trim();
+    if (!activeTopic) {
+        const inferred = isInitial 
+            ? text.slice(0, 100).trim()
+            : (store.chatMessages.find(m => m.sender === 'user' && m.text?.trim())?.text?.replace(/^\[.*?\]\s*/, '').slice(0, 100).trim() || text.slice(0, 100).trim());
+        if (inferred) {
+            activeTopic = inferred;
+            store.setSessionTopic(inferred);
+        }
+    }
+
     const queryInfo: OriginalQueryInfo = {
         text: text,
         files: isInitial ? store.sessionFiles : [],
@@ -188,13 +200,21 @@ export const App = (): React.ReactElement => {
     setLlmStatusMessage("Preparing analysis...");
 
     const aiMsgId = uuidv4();
+    const currentAppliedConfig = {
+        provider: effectiveProvider,
+        modelId: effectiveModelId,
+        temperature: effectiveParams.temperature !== undefined ? Number(effectiveParams.temperature) : undefined,
+        topP: effectiveParams.topP !== undefined ? Number(effectiveParams.topP) : undefined,
+        maxOutputTokens: effectiveParams.maxOutputTokens !== undefined ? Number(effectiveParams.maxOutputTokens) : undefined
+    };
     const aiMsg: ChatMessage = {
         id: aiMsgId,
         sender: 'ai',
         text: '',
         timestamp: new Date(),
         isLoading: true,
-        modelId: effectiveModelId
+        modelId: effectiveModelId,
+        appliedConfig: currentAppliedConfig
     };
     store.addChatMessage(aiMsg);
 
@@ -209,17 +229,22 @@ export const App = (): React.ReactElement => {
         store.mcpSearchConfig
     );
 
+    // Get fresh message history prior to the current turn
+    const priorCompletedMessages = useAppStore.getState().chatMessages.filter(
+        m => m.id !== aiMsgId && m.id !== userMsgId && !m.isLoading && !m.isError
+    );
+
     try {
         const stream = api.streamSiftAnalysis({
             isInitialQuery: isInitial,
             query: isInitial ? queryInfo : text,
-            fullChatHistory: store.chatMessages,
+            fullChatHistory: priorCompletedMessages,
             modelConfigParams: effectiveParams,
             signal: abortControllerRef.current.signal,
             customSystemPrompt: store.customSystemPrompt,
             command: command,
             mcpSearchConfig: store.mcpSearchConfig,
-            sessionTopic: store.sessionTopic,
+            sessionTopic: activeTopic || store.sessionTopic,
             sessionContext: store.sessionContext,
             sourceAssessments: store.sourceAssessments,
             sessionUrls: store.sessionUrls
@@ -239,7 +264,7 @@ export const App = (): React.ReactElement => {
                     store.updateChatMessage(aiMsgId, { groundingSources: event.sources });
                     break;
                 case 'error':
-                    store.updateChatMessage(aiMsgId, { text: event.error, isError: true, isLoading: false });
+                    store.updateChatMessage(aiMsgId, { text: event.error, isError: true, isLoading: false, appliedConfig: currentAppliedConfig });
                     setIsLoading(false);
                     setLlmStatusMessage(null);
                     return;
@@ -249,7 +274,11 @@ export const App = (): React.ReactElement => {
                         isLoading: false, 
                         isInitialSIFTReport: event.isInitialSIFTReport,
                         originalQueryReportType: event.originalQueryReportType,
-                        modelId: event.modelId || store.selectedModelId
+                        modelId: event.modelId || effectiveModelId || store.selectedModelId,
+                        appliedConfig: {
+                            ...currentAppliedConfig,
+                            modelId: event.modelId || effectiveModelId || store.selectedModelId
+                        }
                     });
                     
                     if (event.isInitialSIFTReport) {
@@ -364,24 +393,33 @@ export const App = (): React.ReactElement => {
     if (!userMsg || userMsg.sender !== 'user') return;
 
     const text = userMsg.text;
-    const isInitial = msgIndex === 1; // Assuming initial query is the first AI message (index 1)
+    const isInitial = msgIndex === 1 || Boolean(aiMsg.isInitialSIFTReport);
 
     setIsLoading(true);
-    setLlmStatusMessage("Preparing analysis...");
+    setLlmStatusMessage("Preparing analysis with updated configuration...");
 
-    // Resolve task-specific model routing and parameters
+    // Dynamically resolve the latest task-specific or global model routing and parameters from the store
     const taskKey: LLMTaskKey = isInitial ? 'fact_check' : 'interactive_chat';
     const taskSetting = store.taskModelAssignments?.[taskKey];
     const taskProvider = taskSetting?.provider || store.selectedProviderKey;
     const taskModelId = taskSetting?.modelId || store.selectedModelId;
-    const taskParams = taskSetting?.parameters || store.modelConfigParams;
+    const taskParams = { ...(taskSetting?.parameters || store.modelConfigParams) };
 
-    // Reset the AI message
+    const retryAppliedConfig = {
+        provider: taskProvider,
+        modelId: taskModelId,
+        temperature: taskParams.temperature !== undefined ? Number(taskParams.temperature) : undefined,
+        topP: taskParams.topP !== undefined ? Number(taskParams.topP) : undefined,
+        maxOutputTokens: taskParams.maxOutputTokens !== undefined ? Number(taskParams.maxOutputTokens) : undefined
+    };
+
+    // Reset the AI message with new applied configuration
     store.updateChatMessage(messageId, { 
         text: '', 
         isLoading: true, 
         isError: false,
         modelId: taskModelId,
+        appliedConfig: retryAppliedConfig,
         groundingSources: undefined,
         followUpQueries: undefined
     });
@@ -433,7 +471,13 @@ export const App = (): React.ReactElement => {
                     store.updateChatMessage(messageId, { groundingSources: event.sources });
                     break;
                 case 'error':
-                    store.updateChatMessage(messageId, { text: event.error, isError: true, isLoading: false });
+                    store.updateChatMessage(messageId, { 
+                        text: event.error, 
+                        isError: true, 
+                        isLoading: false,
+                        modelId: taskModelId,
+                        appliedConfig: retryAppliedConfig
+                    });
                     setIsLoading(false);
                     setLlmStatusMessage(null);
                     return;
@@ -443,7 +487,11 @@ export const App = (): React.ReactElement => {
                         isLoading: false, 
                         isInitialSIFTReport: event.isInitialSIFTReport,
                         originalQueryReportType: event.originalQueryReportType,
-                        modelId: event.modelId || store.selectedModelId
+                        modelId: event.modelId || taskModelId || store.selectedModelId,
+                        appliedConfig: {
+                            ...retryAppliedConfig,
+                            modelId: event.modelId || taskModelId || store.selectedModelId
+                        }
                     });
                     
                     if (event.isInitialSIFTReport) {
@@ -474,7 +522,13 @@ export const App = (): React.ReactElement => {
         }
     } catch (e) {
         console.error("Stream error:", e);
-        store.updateChatMessage(messageId, { text: "An unexpected connection error occurred.", isError: true, isLoading: false });
+        store.updateChatMessage(messageId, { 
+            text: "An unexpected connection error occurred.", 
+            isError: true, 
+            isLoading: false,
+            modelId: taskModelId,
+            appliedConfig: retryAppliedConfig
+        });
     } finally {
         setIsLoading(false);
     }
@@ -719,6 +773,7 @@ export const App = (): React.ReactElement => {
                     lastSaveTime={lastSaveTime}
                     onSaveSession={handleSaveSession}
                     customCommands={store.customCommands}
+                    onOpenSettings={() => setIsSettingsModalOpen(true)}
                 />
             )}
 

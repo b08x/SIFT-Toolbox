@@ -33,11 +33,20 @@ export const formatSiftCommandPrompt = (
     topicContext?: string
 ): string => {
     if (typeof command !== 'string') {
-        return `${command.prompt}\n\nUser Input / Focus: ${userInput}`;
+        return `${command.prompt}\n\n[Active Investigation: "${topicContext || 'Ongoing SIFT session'}"]\nUser Input / Focus: ${userInput}`;
     }
 
     const trimmedInput = userInput.trim();
-    const activeSubject = topicContext || trimmedInput || 'the ongoing investigation';
+    const isCommandKeyword = [
+        'another round', 'read the room', 'trace claim', 'trace_claim', 
+        'discourse map', 'discourse_map', 'generate context report', 
+        'generate_context_report', 'generate community note', 
+        'generate_community_note', 'explain like i\'m in high school',
+        'explain_like_im_in_high_school', 'web search', 'web_search'
+    ].includes(trimmedInput.toLowerCase());
+
+    const activeSubject = (topicContext && topicContext.trim()) || 
+        (!isCommandKeyword && trimmedInput ? trimmedInput : 'the central claim of this ongoing investigation');
 
     switch (command) {
         case 'another round':
@@ -47,7 +56,7 @@ Objectives:
 1. Search for new, contrasting, or orthogonal sources that broaden the viewpoint pool (e.g., at least one source challenging the consensus/majority view, and one offering a different perspective).
 2. Evaluate these new sources with URL, position on issue, and usefulness rating (1–5).
 3. Present a concise "### 🔄 Post-Round Update" explaining what new evidence has come to light, whether it reinforces or contradicts prior findings, and if/how it shifts our understanding of the central claim.
-${trimmedInput && trimmedInput !== 'another round' ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
+${!isCommandKeyword && trimmedInput ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
 
         case 'read the room':
             return `[SIFT COMMAND: Read the Room]
@@ -61,7 +70,7 @@ Objectives:
    - Fringe Viewpoints (isolated claims outside scholarly/professional dialogue)
 2. Explain what is driving disagreement (methodological differences, definitions, ideological framing, or commercial/political incentives).
 3. Conclude with an objective synthesis of the prevailing landscape.
-${trimmedInput && trimmedInput !== 'read the room' ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
+${!isCommandKeyword && trimmedInput ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
 
         case 'trace_claim':
             return `[SIFT COMMAND: Trace Claim to Source]
@@ -70,7 +79,7 @@ Objectives:
 1. Identify who first stated or published this claim, when, and where.
 2. Locate the primary source (e.g., original scientific paper, official transcript, legislation text, raw video, or uncropped photograph).
 3. Compare the original source with how it has been simplified, exaggerated, or distorted in downstream reporting.
-${trimmedInput && trimmedInput !== 'trace claim' ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
+${!isCommandKeyword && trimmedInput ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
 
         case 'discourse_map':
             return `[SIFT COMMAND: Discourse Map]
@@ -79,13 +88,13 @@ Objectives:
 1. Identify the major stakeholders and factions (e.g., regulatory bodies, independent researchers, industry advocates, consumer groups).
 2. For each faction, summarize their core argument, primary evidence cited, and underlying incentives or assumptions.
 3. Highlight points of agreement across camps vs crux unresolved disagreements.
-${trimmedInput && trimmedInput !== 'discourse map' ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
+${!isCommandKeyword && trimmedInput ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
 
         case 'explain_like_im_in_high_school':
             return `[SIFT COMMAND: Explain Like I'm in High School]
 Explain the verified facts and findings regarding "${activeSubject}" in clear, relatable, conversational language suitable for a high school student.
 Avoid dense academic or legal jargon without sacrificing nuance. Use clear analogies and walk through why the claim was misleading or accurate.
-${trimmedInput && trimmedInput !== "explain like i'm in high school" ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
+${!isCommandKeyword && trimmedInput ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
 
         case 'generate_community_note':
             return `[SIFT COMMAND: Generate Community Note]
@@ -94,19 +103,19 @@ Structure:
 - Context Summary (under 280 characters): Neutral statement of what context is missing or what factual correction applies.
 - Key Evidence & Sources: Bulleted links to authoritative primary sources.
 - Why It Matters: Brief explanation of how it corrects potential public misunderstanding.
-${trimmedInput && trimmedInput !== 'generate community note' ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
+${!isCommandKeyword && trimmedInput ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
 
         case 'generate_context_report':
             return `[SIFT COMMAND: Generate Context Report]
 Generate a comprehensive Context Report on "${activeSubject}", detailing the historical background, institutional definitions, and systemic factors that provide the necessary context to evaluate this claim accurately.
-${trimmedInput && trimmedInput !== 'generate context report' ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
+${!isCommandKeyword && trimmedInput ? `\nUser's Specific Query: "${trimmedInput}"` : ''}`;
 
         case 'web_search':
             return `[SIFT COMMAND: Web Search Verification]
-Perform targeted web search verification on this query: "${trimmedInput || activeSubject}". Focus on authoritative, recent primary sources and state the verifiable facts clearly with direct citations.`;
+Perform targeted web search verification on this query: "${!isCommandKeyword && trimmedInput ? trimmedInput : activeSubject}". Focus on authoritative, recent primary sources and state the verifiable facts clearly with direct citations.`;
 
         default:
-            return `[SIFT COMMAND: ${command}] ${trimmedInput}`;
+            return `[SIFT COMMAND: ${command}] [Context: "${activeSubject}"] ${!isCommandKeyword ? trimmedInput : ''}`;
     }
 };
 
@@ -507,8 +516,21 @@ export class AgenticApiService {
 
         const rawQueryText = typeof query === 'string' ? query : (query.text || '');
 
+        // Resolve active topic for continuity across turns
+        let resolvedTopic = options.sessionTopic?.trim();
+        if (!resolvedTopic && fullChatHistory && fullChatHistory.length > 0) {
+            const firstUser = fullChatHistory.find(m => m.sender === 'user' && m.text?.trim());
+            if (firstUser && firstUser.text) {
+                const clean = firstUser.text.replace(/^\[.*?\]\s*/, '').trim();
+                resolvedTopic = clean.length > 120 ? clean.slice(0, 120) + '...' : clean;
+            }
+        }
+        if (!resolvedTopic && isInitialQuery && typeof query !== 'string' && query.text) {
+            resolvedTopic = query.text.slice(0, 120).trim();
+        }
+
         const contextOptions: SessionContextOptions = {
-            sessionTopic: options.sessionTopic,
+            sessionTopic: resolvedTopic,
             sessionContext: options.sessionContext,
             sourceAssessments: options.sourceAssessments,
             sessionUrls: options.sessionUrls
@@ -551,12 +573,12 @@ export class AgenticApiService {
         } else {
             userPrompt = typeof query === 'string' ? query : (query.text || '');
             if (command) {
-                userPrompt = formatSiftCommandPrompt(command, userPrompt, options.sessionTopic);
+                userPrompt = formatSiftCommandPrompt(command, userPrompt, resolvedTopic);
                 if (typeof command !== 'string' && command.parameters) {
                     effectiveParams = { ...effectiveParams, ...command.parameters };
                 }
             } else {
-                userPrompt = `[Ongoing SIFT Investigation Follow-up]: ${userPrompt}`;
+                userPrompt = `[Ongoing SIFT Investigation regarding: "${resolvedTopic || 'active topic'}"]\n${userPrompt}`;
             }
             if (mcpGroundingBlock) {
                 userPrompt = `${mcpGroundingBlock}\n\n${userPrompt}`;
@@ -762,7 +784,16 @@ export class AgenticApiService {
                     }
                 }
 
-                messages.push({ role: 'user', content: contentParts as any });
+                if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
+                    const lastUserMsg = messages[messages.length - 1];
+                    const existingContent = typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '';
+                    if (existingContent) {
+                        contentParts.unshift({ type: 'text', text: existingContent });
+                    }
+                    messages[messages.length - 1] = { role: 'user', content: contentParts as any };
+                } else {
+                    messages.push({ role: 'user', content: contentParts as any });
+                }
 
                 const { textStream } = await streamText({
                     model: model as any,
@@ -771,7 +802,7 @@ export class AgenticApiService {
                     temperature: Number(effectiveParams.temperature) || 0.7,
                     topP: Number(effectiveParams.topP) || 0.95,
                     topK: effectiveParams.topK ? Number(effectiveParams.topK) : undefined,
-                    maxTokens: effectiveParams.maxOutputTokens 
+                    maxOutputTokens: effectiveParams.maxOutputTokens 
                         ? Number(effectiveParams.maxOutputTokens) 
                         : (effectiveParams.max_tokens ? Number(effectiveParams.max_tokens) : undefined),
                     frequencyPenalty: effectiveParams.frequencyPenalty !== undefined ? Number(effectiveParams.frequencyPenalty) : undefined,

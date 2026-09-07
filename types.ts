@@ -51,6 +51,13 @@ export interface ChatMessage {
   structuredData?: any;
   reasoning?: string;
   followUpQueries?: string[];
+  appliedConfig?: {
+    provider?: string;
+    modelId?: string;
+    temperature?: number;
+    topP?: number;
+    maxOutputTokens?: number;
+  };
 }
 
 // For the new left query panel

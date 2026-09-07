@@ -21,13 +21,14 @@ interface ChatInterfaceProps {
   lastSaveTime: Date | null;
   onSaveSession: () => void;
   customCommands: CustomCommand[];
+  onOpenSettings?: () => void;
 }
 
 export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ 
     messages, sourceAssessments, onSendMessage, isLoading, onStopGeneration, 
     onRestartGeneration, onRetryMessage, canRestart, supportsWebSearch, onSourceIndexClick,
     onToggleLiveConversation, llmStatusMessage, saveStatus, lastSaveTime, onSaveSession,
-    customCommands
+    customCommands, onOpenSettings
 }, ref) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +51,7 @@ export const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({
                 onSourceIndexClick={onSourceIndexClick} 
                 onFollowUpClick={(query) => onSendMessage(query)}
                 onRetryClick={() => onRetryMessage?.(msg.id)}
+                onOpenSettings={onOpenSettings}
             />
           ))}
           {isLoading && <SiftStepTracker isLoading={isLoading} streamedText={loadingMessage?.text} />}

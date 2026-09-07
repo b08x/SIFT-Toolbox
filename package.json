@@ -16,7 +16,7 @@
     "@ai-sdk/openai": "^3.0.39",
     "@google/genai": "^1.4.0",
     "@modelfusion/vercel-ai": "^1.1.0",
-    "ai": "^3.4.33",
+    "ai": "^5.0.253",
     "d3": "^7.9.0",
     "firebase": "^11.3.0",
     "lucide-react": "^1.11.0",
