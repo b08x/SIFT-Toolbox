@@ -10,10 +10,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.53",
-    "@ai-sdk/google": "^3.0.37",
-    "@ai-sdk/mistral": "^0.0.22",
-    "@ai-sdk/openai": "^3.0.39",
+    "@ai-sdk/anthropic": "~2.0.105",
+    "@ai-sdk/google": "~2.0.99",
+    "@ai-sdk/mistral": "~2.0.50",
+    "@ai-sdk/openai": "~2.0.130",
     "@google/genai": "^1.4.0",
     "@modelfusion/vercel-ai": "^1.1.0",
     "ai": "^5.0.253",

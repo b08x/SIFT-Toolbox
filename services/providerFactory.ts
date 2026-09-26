@@ -4,22 +4,47 @@ import { createMistral } from '@ai-sdk/mistral';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { AIProvider } from '../types.ts';
 
+/**
+ * Ensures the model conforms to AI SDK specification version 'v2'
+ * expected by AI SDK 5, preventing UnsupportedModelVersionError.
+ */
+const ensureLanguageModelV2 = <T extends object>(model: T): T => {
+  if (!model) return model;
+  const anyModel = model as any;
+  if (anyModel.specificationVersion && anyModel.specificationVersion !== 'v2') {
+    return new Proxy(model, {
+      get(target, prop, receiver) {
+        if (prop === 'specificationVersion') {
+          return 'v2';
+        }
+        return Reflect.get(target, prop, receiver);
+      }
+    });
+  }
+  return model;
+};
+
 export const getVercelModel = (provider: AIProvider, apiKey: string, modelId: string) => {
   if (!apiKey) {
     throw new Error(`Missing API key for provider: ${provider}`);
   }
 
+  let model: any;
+
   switch (provider) {
     case AIProvider.GOOGLE_GEMINI: {
       const google = createGoogleGenerativeAI({ apiKey });
-      return google(modelId);
+      model = google(modelId);
+      break;
     }
 
     case AIProvider.OPENAI: {
       const openai = createOpenAI({ 
         apiKey
       });
-      return openai(modelId);
+      // Use .chat() to ensure standard chat completions API is used
+      model = typeof openai.chat === 'function' ? openai.chat(modelId) : openai(modelId);
+      break;
     }
 
     case AIProvider.OPENROUTER: {
@@ -31,12 +56,15 @@ export const getVercelModel = (provider: AIProvider, apiKey: string, modelId: st
             'X-Title': 'SIFT Toolbox'
         }
       });
-      return openrouter(modelId);
+      // OpenRouter models implement the OpenAI chat completions endpoint (/chat/completions)
+      model = typeof openrouter.chat === 'function' ? openrouter.chat(modelId) : openrouter(modelId);
+      break;
     }
 
     case AIProvider.MISTRAL: {
         const mistral = createMistral({ apiKey });
-        return mistral(modelId);
+        model = mistral(modelId);
+        break;
     }
 
     case AIProvider.ANTHROPIC: {
@@ -46,7 +74,8 @@ export const getVercelModel = (provider: AIProvider, apiKey: string, modelId: st
                 'anthropic-dangerous-direct-browser-access': 'true'
             }
         });
-        return anthropic(modelId);
+        model = anthropic(modelId);
+        break;
     }
 
     case AIProvider.GROQ: {
@@ -54,7 +83,9 @@ export const getVercelModel = (provider: AIProvider, apiKey: string, modelId: st
             apiKey,
             baseURL: 'https://api.groq.com/openai/v1',
         });
-        return groq(modelId);
+        // Groq implements OpenAI-compatible /chat/completions
+        model = typeof groq.chat === 'function' ? groq.chat(modelId) : groq(modelId);
+        break;
     }
 
     case AIProvider.OLLAMA: {
@@ -65,10 +96,14 @@ export const getVercelModel = (provider: AIProvider, apiKey: string, modelId: st
             apiKey: 'ollama',
             baseURL,
         });
-        return ollama(modelId);
+        // Ollama implements OpenAI-compatible /chat/completions
+        model = typeof ollama.chat === 'function' ? ollama.chat(modelId) : ollama(modelId);
+        break;
     }
 
     default:
       throw new Error(`Provider ${provider} not supported in factory.`);
   }
+
+  return ensureLanguageModelV2(model);
 };
