@@ -24,10 +24,13 @@ interface AppStateProperties extends SavedSessionState {
   availableModels: AIModelConfig[];
   mcpSearchConfig: McpSearchConfig;
   taskModelAssignments: TaskModelAssignments;
+  isReaderMode: boolean;
 }
 
 interface AppStateActions {
   setInitialState: (state: Partial<AppStateProperties>) => void;
+  setIsReaderMode: (enabled: boolean | ((prev: boolean) => boolean)) => void;
+  toggleReaderMode: () => void;
   addChatMessage: (message: ChatMessage) => void;
   updateChatMessage: (id: string, updates: Partial<ChatMessage>) => void;
   setChatMessages: (messages: ChatMessage[]) => void;
@@ -94,10 +97,21 @@ const initialState: AppStateProperties = {
   availableModels: compliantInitialModels,
   mcpSearchConfig: DEFAULT_MCP_CONFIG,
   taskModelAssignments: DEFAULT_TASK_ASSIGNMENTS,
+  isReaderMode: false,
 };
 
 export const useAppStore = create<AppState>((set) => ({
   ...initialState,
+
+  setIsReaderMode: (enabled) => {
+    if (typeof enabled === 'function') {
+      set(state => ({ isReaderMode: enabled(state.isReaderMode) }));
+    } else {
+      set({ isReaderMode: enabled });
+    }
+  },
+
+  toggleReaderMode: () => set(state => ({ isReaderMode: !state.isReaderMode })),
 
   setMcpSearchConfig: (config) => {
     if (typeof config === 'function') {
@@ -265,5 +279,6 @@ export const useAppStore = create<AppState>((set) => ({
     sessionContext: '',
     sessionFiles: [],
     sessionUrls: '',
+    isReaderMode: false,
   }),
 }));

@@ -17,6 +17,7 @@ interface ChatMessageItemProps {
   onFollowUpClick?: (query: string) => void;
   onRetryClick?: () => void;
   onOpenSettings?: () => void;
+  isReaderMode?: boolean;
 }
 
 const FilePreview: React.FC<{ file: UploadedFile }> = ({ file }) => {
@@ -49,7 +50,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onSourceIndexClick, 
   onFollowUpClick, 
   onRetryClick,
-  onOpenSettings 
+  onOpenSettings,
+  isReaderMode = false
 }) => {
   const { sender, text, timestamp, isLoading, isError, groundingSources, uploadedFiles, modelId, isInitialSIFTReport, originalQueryReportType, isFromCache, structuredData, followUpQueries } = message;
   const isUser = sender === 'user';
@@ -200,13 +202,13 @@ ${groundingSourcesText}
     if (isInitialSIFTReport && originalQueryReportType === ReportType.FULL_CHECK && !isLoading && !isError) {
       const parsedSections = parseSiftFullCheckReport(text);
       if (parsedSections.length > 0) {
-        return <CollapsibleReport sections={parsedSections} reasoning={message.reasoning} />;
+        return <CollapsibleReport sections={parsedSections} reasoning={message.reasoning} isReaderMode={isReaderMode} />;
       }
     }
     
     if (text.trim() || isLoading) { 
       return (
-        <div className="markdown-content prose-sm sm:prose-base max-w-none">
+        <div className={`markdown-content ${isReaderMode ? 'prose-base sm:prose-lg leading-relaxed text-main' : 'prose-sm sm:prose-base'} max-w-none`}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -246,6 +248,15 @@ ${groundingSourcesText}
 
     return null; 
   };
+
+  if (isReaderMode) {
+    if (isUser) return null; // Strip user chat metadata and bubbles in reader mode
+    return (
+      <article className="w-full max-w-none py-6 first:pt-2 border-b border-border/40 last:border-b-0">
+        {renderContent()}
+      </article>
+    );
+  }
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6 px-2 sm:px-4 group`}>

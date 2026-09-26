@@ -692,43 +692,47 @@ export const App = (): React.ReactElement => {
   return (
     <div className="flex h-screen overflow-hidden bg-main text-main font-sans">
       {/* Left Sidebar */}
-      <LeftSidebar 
-        isOpen={isLeftSidebarOpen}
-        onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
-        onNewSession={handleNewSession}
-        onOpenAbout={() => handleNavClick('about')}
-        onOpenLearnSift={() => setIsLearnSiftModalOpen(true)}
-        onOpenSettings={() => {
-            setIsSettingsModalOpen(true);
-            if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
-        }}
-        onOpenExport={() => setIsExportModalOpen(true)}
-        currentView={mainView}
-        onOpenConfig={() => handleNavClick('config')}
-        onOpenRecentSessions={() => {
-            setIsRecentSessionsModalOpen(true);
-            if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
-        }}
-        recentSessions={recentSessions}
-        currentSessionId={store.sessionId}
-        onSelectSession={handleSelectRecentSession}
-      />
+      {!store.isReaderMode && (
+        <LeftSidebar 
+          isOpen={isLeftSidebarOpen}
+          onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+          onNewSession={handleNewSession}
+          onOpenAbout={() => handleNavClick('about')}
+          onOpenLearnSift={() => setIsLearnSiftModalOpen(true)}
+          onOpenSettings={() => {
+              setIsSettingsModalOpen(true);
+              if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+          }}
+          onOpenExport={() => setIsExportModalOpen(true)}
+          currentView={mainView}
+          onOpenConfig={() => handleNavClick('config')}
+          onOpenRecentSessions={() => {
+              setIsRecentSessionsModalOpen(true);
+              if (window.innerWidth < 768) setIsLeftSidebarOpen(false);
+          }}
+          recentSessions={recentSessions}
+          currentSessionId={store.sessionId}
+          onSelectSession={handleSelectRecentSession}
+        />
+      )}
 
       {/* Main Workspace */}
       <main className={`flex-grow flex flex-col min-w-0 transition-all duration-300 relative`}>
         {/* Mobile Header Toggle */}
-        <div className="md:hidden p-4 border-b border-border flex justify-between items-center bg-background-secondary">
-            <button onClick={() => setIsLeftSidebarOpen(true)} className="p-1 text-text-light" aria-label="Open sidebar">
-                <Menu size={24} />
-            </button>
-            <div className="flex items-center">
-              <span className="text-lg mr-2">{SIFT_ICON}</span>
-              <h1 className="font-bold text-text text-sm uppercase tracking-widest">SIFT BOX</h1>
-            </div>
-            <button onClick={() => setIsRightSidebarOpen(true)} className="p-1 text-text-light" aria-label="Open sources">
-                <BarChart3 size={24} />
-            </button>
-        </div>
+        {!store.isReaderMode && (
+          <div className="md:hidden p-4 border-b border-border flex justify-between items-center bg-background-secondary">
+              <button onClick={() => setIsLeftSidebarOpen(true)} className="p-1 text-text-light" aria-label="Open sidebar">
+                  <Menu size={24} />
+              </button>
+              <div className="flex items-center">
+                <span className="text-lg mr-2">{SIFT_ICON}</span>
+                <h1 className="font-bold text-text text-sm uppercase tracking-widest">SIFT BOX</h1>
+              </div>
+              <button onClick={() => setIsRightSidebarOpen(true)} className="p-1 text-text-light" aria-label="Open sources">
+                  <BarChart3 size={24} />
+              </button>
+          </div>
+        )}
 
         <div className="flex-grow overflow-hidden relative">
             {mainView === 'config' && (
@@ -774,6 +778,10 @@ export const App = (): React.ReactElement => {
                     onSaveSession={handleSaveSession}
                     customCommands={store.customCommands}
                     onOpenSettings={() => setIsSettingsModalOpen(true)}
+                    isReaderMode={store.isReaderMode}
+                    onToggleReaderMode={store.toggleReaderMode}
+                    sessionTopic={store.sessionTopic}
+                    sessionContext={store.sessionContext}
                 />
             )}
 
@@ -786,7 +794,7 @@ export const App = (): React.ReactElement => {
       </main>
 
       {/* Right Sidebar (Sources) */}
-      {mainView === 'chat' && (
+      {mainView === 'chat' && !store.isReaderMode && (
           <RightSidebar 
             isOpen={isRightSidebarOpen}
             onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}

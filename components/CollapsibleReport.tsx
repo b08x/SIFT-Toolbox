@@ -11,9 +11,10 @@ import { LayoutList, List } from 'lucide-react';
 interface CollapsibleReportProps {
   sections: ParsedReportSection[];
   reasoning?: string;
+  isReaderMode?: boolean;
 }
 
-export const CollapsibleReport: React.FC<CollapsibleReportProps> = ({ sections, reasoning }) => {
+export const CollapsibleReport: React.FC<CollapsibleReportProps> = ({ sections, reasoning, isReaderMode }) => {
   const initialOpenIndex = useMemo(() => {
     // Default to the "Revised Summary" section if it exists, otherwise the first section.
     const summaryIndex = sections.findIndex(s => s.title.includes('Revised Summary'));
@@ -25,12 +26,29 @@ export const CollapsibleReport: React.FC<CollapsibleReportProps> = ({ sections, 
   const [viewMode, setViewMode] = useState<'compact' | 'detailed'>('compact');
 
   useEffect(() => {
-      if (viewMode === 'detailed') {
+      if (viewMode === 'detailed' || isReaderMode) {
           setOpenSections(new Set(sections.map((_, i) => i)));
       } else {
           setOpenSections(new Set([initialOpenIndex]));
       }
-  }, [viewMode, sections, initialOpenIndex]);
+  }, [viewMode, sections, initialOpenIndex, isReaderMode]);
+
+  if (isReaderMode) {
+    return (
+      <div className="flex flex-col gap-8 my-4">
+        {sections.map((section, index) => (
+          <section key={index} className="pb-6 border-b border-border/40 last:border-b-0">
+            <h3 className="font-bold text-main text-lg sm:text-xl mb-3 tracking-tight">
+              {section.title}
+            </h3>
+            <div className="markdown-content text-main leading-relaxed">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{section.content}</ReactMarkdown>
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+  }
 
   const toggleSection = (index: number) => {
     setOpenSections(prev => {
